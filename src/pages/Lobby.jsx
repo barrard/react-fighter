@@ -1,5 +1,5 @@
 // src/pages/Lobby.jsx
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useOutletContext } from "react-router-dom";
 
@@ -10,13 +10,19 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { ScrollArea } from "@/components/ui/scroll-area";
 // import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Shield, Swords, Users, LogIn } from "lucide-react";
-
+import API from "../API";
 export default function Lobby() {
     const navigate = useNavigate();
     const { someValue, someFunction } = useOutletContext();
+    const [message, setMessage] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
 
     const { socket, username, setUsername, activeRooms, setError, isConnected } = useSocket();
     const [roomName, setRoomName] = useState("");
+
+    useEffect(() => {
+        socket.emit("getRooms");
+    }, []);
 
     // Set up room created listener
     useState(() => {
@@ -55,6 +61,107 @@ export default function Lobby() {
         socket.emit("joinRoom", { roomName });
     };
 
+    const UsernameCard = (props) => {
+        const [isEditing, setIsEditing] = useState(false);
+        const [username, setUsername] = useState(props.username || "");
+        const usernameRef = useRef(username);
+
+        useEffect(() => {
+            usernameRef.current = username;
+        }, [username]);
+
+        function handleEdit() {
+            setIsEditing(!isEditing);
+        }
+
+        const handleSubmit = async () => {
+            const _username = usernameRef.current;
+
+            if (!_username.trim()) {
+                setMessage("Please enter a username");
+                return;
+            }
+
+            setIsLoading(true);
+            setMessage("");
+
+            try {
+                props.setUsername(_username);
+                await API.setName(_username);
+                setMessage("Profile saved successfully!");
+            } catch (error) {
+                setMessage("Network error. Please try again.");
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        return (
+            <>
+                {!username ? (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Shield className="h-5 w-5" />
+                                Your Profile
+                            </CardTitle>
+                            <CardDescription>Enter your username to join or create a match</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <Input
+                                        placeholder="Enter your username"
+                                        value={username}
+                                        onChange={(e) => setUsername(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                        </CardContent>
+                        <CardFooter>
+                            <Button className="w-full" onClick={handleSubmit} disabled={isLoading}>
+                                {isLoading ? "Submitting..." : "Set Name"}
+                            </Button>
+                        </CardFooter>
+                    </Card>
+                ) : (
+                    <Card className="h-full flex flex-col">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Shield className="h-5 w-5" />
+                                Your Profile
+                            </CardTitle>
+                            <CardDescription>Hello {username}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="flex-grow">
+                            {isEditing && (
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Input
+                                            placeholder="Enter your username"
+                                            value={username}
+                                            onChange={(e) => setUsername(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </CardContent>
+                        <CardFooter>
+                            {isEditing ? (
+                                <Button className="w-full" onClick={handleSubmit} disabled={isLoading}>
+                                    {isLoading ? "Submitting..." : "Submit"}
+                                </Button>
+                            ) : (
+                                <Button className="w-full" onClick={handleEdit} disabled={isLoading}>
+                                    {isLoading ? "Submitting..." : "Edit Name"}
+                                </Button>
+                            )}
+                        </CardFooter>
+                    </Card>
+                )}
+            </>
+        );
+    };
+
     return (
         <div className="space-y-8">
             <div className="flex items-center justify-center">
@@ -65,26 +172,7 @@ export default function Lobby() {
             </div>
 
             <div className="grid md:grid-cols-2 gap-8">
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Shield className="h-5 w-5" />
-                            Your Profile
-                        </CardTitle>
-                        <CardDescription>Enter your username to join or create a match</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <Input
-                                    placeholder="Enter your username"
-                                    value={username}
-                                    onChange={(e) => setUsername(e.target.value)}
-                                />
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+                <UsernameCard username={username} setUsername={setUsername} />
 
                 <Card>
                     <CardHeader>

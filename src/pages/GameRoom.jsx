@@ -52,8 +52,14 @@ export default function GameRoom() {
             setRoomState("verified");
         });
 
-        socket.on("characterSelected", (character = {}) => {
-            const { isPlayer1 } = character;
+        socket.on("characterSelected", (selectedChar = {}) => {
+            const { isPlayer1, character } = selectedChar;
+
+            if (isPlayer1) {
+                setPlayer1(character);
+            } else {
+                setPlayer2(character);
+            }
         });
 
         return () => {

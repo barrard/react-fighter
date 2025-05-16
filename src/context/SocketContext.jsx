@@ -14,6 +14,7 @@ const socket = io(SOCKET_URL, {
     reconnection: true,
     reconnectionAttempts: 5,
     reconnectionDelay: 1000,
+    withCredentials: true,
 });
 
 export function SocketProvider({ children }) {
@@ -22,6 +23,7 @@ export function SocketProvider({ children }) {
     const [activeRooms, setActiveRooms] = useState([]);
     const [error, setError] = useState("");
     const [playerType, setPlayerType] = useState("spectator");
+    const [gotUserData, setGotUserData] = useState(false);
 
     const navigate = useNavigate();
 
@@ -56,6 +58,15 @@ export function SocketProvider({ children }) {
             navigate(`/game/${roomName}`);
         };
 
+        const onUserData = (data) => {
+            setGotUserData(true);
+            debugger;
+            setUsername(decodeURIComponent(data.username));
+            setUsernamePersist(decodeURIComponent(data.username));
+        };
+
+        socket.on("userData", onUserData);
+
         socket.on("connect", onConnect);
         socket.on("disconnect", onDisconnect);
         socket.on("roomsList", onRoomsList);
@@ -70,6 +81,10 @@ export function SocketProvider({ children }) {
             socket.off("error", onError);
         };
     }, []);
+
+    useEffect(() => {
+        setUsernamePersist(username);
+    }, [username]);
 
     // Save username to localStorage
     const setUsernamePersist = (name) => {
@@ -86,6 +101,8 @@ export function SocketProvider({ children }) {
         activeRooms,
         error,
         setError,
+        gotUserData,
+        setGotUserData,
     };
 
     return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;

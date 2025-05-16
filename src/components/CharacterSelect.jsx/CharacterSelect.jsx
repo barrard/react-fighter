@@ -121,7 +121,7 @@ export default function CharacterSelect() {
         setSelectionAnimation(true);
         const character = Characters[selectedIdx];
         console.log(`Selected character: ${character.name}`);
-        debugger;
+
         socket.emit("characterSelected", character);
         // After animation completes, set as ready
         setTimeout(() => {
