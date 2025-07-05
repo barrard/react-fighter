@@ -1,78 +1,132 @@
 // src/pages/GameRoom.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSocket } from "../context/SocketContext";
-import { useOutletContext } from "react-router-dom";
+// import { useOutletContext } from "react-router-dom"; // This seems unused now
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Heart, Swords, Timer, ArrowLeft } from "lucide-react";
 
-import CharacterSelect from "@/components/CharacterSelect.jsx";
+import { Progress } from "@/components/ui/progress"; // Added for health bars
+import { Timer, ArrowLeft, Heart, Swords } from "lucide-react"; // Added icons
+
+import CharacterSelect from "@/components/CharacterSelect.jsx"; // Your NEW CharacterSelect component
+import FightCanvas from "@/components/FightCanvas.jsx"; // Import the new component
+import CONSTS from "../game-engine/contants.js"; // Import game constants
 export default function GameRoom() {
     const { roomId } = useParams();
     const navigate = useNavigate();
-    const { someValue, someFunction } = useOutletContext();
-
     const { socket, username, error } = useSocket();
 
-    const [roomState, setRoomState] = useState("verifying"); // verifying, waiting, ready, fighting, finished
-    const [currentPlayer, setCurrentPlayer] = useState(null);
+    const [roomState, setRoomState] = useState("verifying"); // verifying, verified, fighting, finished
     const [player1, setPlayer1] = useState(null);
     const [player2, setPlayer2] = useState(null);
-    const [spectators, setSpectators] = useState({});
-
-    const [roomVerified, setRoomVerified] = useState(false);
-    // const [errorAlert, setErrorAlert] = useState("");
-
-    //actions to take per various possible errors
+    const [roomVerified, setRoomVerified] = useState(false); // This will hold the user's role: 'player1', 'player2', or 'spectator'
+    const [gameTimer, setGameTimer] = useState(99); // Add a state for the game timer
+    const allPlayers = useRef(new Map()); // Store all players in the room
+    // THIS HOOK IS PRESERVED FROM YOUR ORIGINAL CODE
     useEffect(() => {
         let errMsg = error?.message || error;
         if (errMsg) {
-            //handle various messages
             if (errMsg === "You are not in this room") {
                 navigate("/");
             }
         }
-    }, [error]);
+    }, [error, navigate]);
 
-    //Sanity checks, and verify room
+    // THIS HOOK IS PRESERVED AND ENHANCED FROM YOUR ORIGINAL CODE
     useEffect(() => {
         if (!roomId) {
             navigate("/");
-        } else {
-            socket.emit("verifyRoom", roomId);
-        }
-        setRoomState("verifying");
-
-        socket.on("roomVerified", (inRoomAs) => {
-            setRoomVerified(inRoomAs);
-            setRoomState("verified");
-        });
-
-        socket.on("characterSelected", (selectedChar = {}) => {
-            const { isPlayer1, character } = selectedChar;
-
-            if (isPlayer1) {
-                setPlayer1(character);
-            } else {
-                setPlayer2(character);
-            }
-        });
-
-        return () => {
-            socket.off("roomVerified");
-        };
-    }, [roomId]);
-
-    useEffect(() => {
-        if (!roomVerified) {
-            if (roomState !== "verifying") setRoomState("verifying");
             return;
         }
-    }, [roomVerified]);
+
+        // This check prevents re-registering listeners on every render
+        if (!socket) return;
+
+        console.log("mounted GameRoom with roomId:", roomId);
+        socket.emit("verifyRoom", roomId);
+        setRoomState("verifying");
+
+        const handleRoomVerified = (inRoomAs) => {
+            if (!inRoomAs) {
+                navigate("/");
+                return;
+            }
+            // e.g., 'player1', 'player2', 'spectator'
+            setRoomVerified(inRoomAs);
+            setRoomState("verified");
+        };
+
+        const handleCharacterSelected = (selectedChar = {}) => {
+            const { isPlayer1, character } = selectedChar;
+            const updater = () => ({ character: character }); // Update player object with final character
+
+            if (isPlayer1) {
+                setPlayer1(updater);
+            } else {
+                setPlayer2(updater);
+            }
+        };
+
+        const initServerPlayers = (serverData) => {
+            debugger;
+
+            // console.log("Received init serverData:", serverData);
+            // if (this.localPlayerId != serverData.playerId) {
+            //     this.localPlayerId = serverData.playerId;
+            // }
+            const FLOOR_Y = CONSTS.CANVAS_HEIGHT - CONSTS.FLOOR_HEIGHT;
+            // Add all existing players
+            serverData.players.forEach((serverPlayer) => {
+                // Set initial y position on the floor
+                serverPlayer.y = FLOOR_Y - CONSTS.PLAYER_HEIGHT;
+                // Set default facing direction if not provided
+                serverPlayer.facing = serverPlayer.facing || "right";
+                // Initialize interpolation targets
+                serverPlayer.targetX = serverPlayer.x;
+                // serverPlayer.targetHeight = serverPlayer.height || 0;
+                allPlayers.current.set(serverPlayer.id, serverPlayer);
+            });
+        };
+
+        const addServerPlayer = (serverPlayer) => {
+            debugger;
+            // console.log("New serverPlayer joined:", serverPlayer.id);
+            // Set initial y position on the floor
+            serverPlayer.y = CONSTS.FLOOR_Y - CONSTS.PLAYER_HEIGHT;
+            // Set default facing direction if not provided
+            serverPlayer.facing = serverPlayer.facing || "right";
+            // Initialize interpolation targets
+            serverPlayer.targetX = serverPlayer.x;
+            // serverPlayer.targetHeight = serverPlayer.height || 0;
+            allPlayers.current.set(serverPlayer.id, serverPlayer);
+        };
+
+        socket.on("playerJoined", addServerPlayer);
+        socket.on("initServerPlayers", initServerPlayers);
+
+        socket.on("roomVerified", handleRoomVerified);
+        socket.on("characterSelected", handleCharacterSelected);
+        // socket.on("characterPreview", handleCharacterPreview);
+
+        return () => {
+            socket.off("roomVerified", handleRoomVerified);
+            socket.off("characterSelected", handleCharacterSelected);
+            // socket.off("characterPreview", handleCharacterPreview);
+        };
+    }, [roomId, socket]); // Dependencies for setup
+
+    // NEW: This effect checks if both players are ready and starts the fight
+    useEffect(() => {
+        // Check if both players have a character selected and we are not already fighting
+        if (player1?.character && player2?.character && roomState !== "fighting") {
+            // Give a brief moment for players to see the final matchup
+            setTimeout(() => {
+                setRoomState("fighting");
+            }, 1500); // 1.5-second pause before the fight starts
+        }
+    }, [player1, player2, roomState]);
 
     function leaveRoom() {
         socket.emit("leaveRoom", roomId);
@@ -80,26 +134,39 @@ export default function GameRoom() {
     }
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" onClick={leaveRoom}>
-                        <ArrowLeft className="h-5 w-5" />
-                    </Button>
-                    {/* <h1 className="text-2xl font-bold">{roomId}</h1> */}
-                    <Badge variant="outline" className="ml-2">
-                        Room ID: {roomId}
-                    </Badge>
-                </div>
+        <div className="space-y-6 container mx-auto p-4">
+            <header className="flex items-center justify-between">
+                <Button variant="ghost" size="icon" onClick={leaveRoom}>
+                    <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <Badge variant="outline">Room: {roomId}</Badge>
                 <div className="flex items-center gap-2">
                     <Timer className="h-5 w-5" />
-                    <span>
-                        Game {roomState}: {roomVerified}
-                    </span>
+                    <span className="capitalize">Game State: {roomState}</span>
                 </div>
-            </div>
+            </header>
 
-            <CharacterSelect />
+            <hr />
+
+            <main>
+                {/* STATE 1: VERIFYING */}
+                {roomState === "verifying" && <p className="text-center text-xl">Entering Room...</p>}
+
+                {/* STATE 2: CHARACTER SELECT */}
+                {roomState === "verified" && (
+                    <CharacterSelect player1={player1} player2={player2} role={roomVerified} />
+                )}
+
+                {/* STATE 3: THE FIGHT! */}
+                {roomState === "fighting" && (
+                    <FightCanvas
+                        allPlayers={allPlayers.current}
+                        localPlayerId={socket.id}
+                        player1={player1}
+                        player2={player2}
+                    />
+                )}
+            </main>
         </div>
     );
 }

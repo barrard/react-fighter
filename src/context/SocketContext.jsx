@@ -59,8 +59,8 @@ export function SocketProvider({ children }) {
         };
 
         const onUserData = (data) => {
+            if (!data.username) return;
             setGotUserData(true);
-            debugger;
             setUsername(decodeURIComponent(data.username));
             setUsernamePersist(decodeURIComponent(data.username));
         };

@@ -118,7 +118,7 @@ export default function drawCharacterPortrait(ctx, character, width, height, isS
     }
 
     // Add class-specific features
-    switch (character.name.toLowerCase()) {
+    switch (character.name?.toLowerCase()) {
         case "knight":
         case "paladin":
         case "samurai":

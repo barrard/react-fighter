@@ -20,6 +20,7 @@ export default function Lobby() {
     const { socket, username, setUsername, activeRooms, setError, isConnected } = useSocket();
     const [roomName, setRoomName] = useState("");
 
+    console.log(activeRooms);
     useEffect(() => {
         socket.emit("getRooms");
     }, []);
@@ -63,7 +64,7 @@ export default function Lobby() {
 
     const UsernameCard = (props) => {
         const [isEditing, setIsEditing] = useState(false);
-        const [username, setUsername] = useState(props.username || "");
+        const [usernameInput, setUsernameInput] = useState(props.username || "");
         const usernameRef = useRef(username);
 
         useEffect(() => {
@@ -74,8 +75,9 @@ export default function Lobby() {
             setIsEditing(!isEditing);
         }
 
-        const handleSubmit = async () => {
-            const _username = usernameRef.current;
+        const handleSubmitUserName = async () => {
+            const _username = usernameInput;
+            debugger;
 
             if (!_username.trim()) {
                 setMessage("Please enter a username");
@@ -111,14 +113,14 @@ export default function Lobby() {
                                 <div className="space-y-2">
                                     <Input
                                         placeholder="Enter your username"
-                                        value={username}
-                                        onChange={(e) => setUsername(e.target.value)}
+                                        value={usernameInput}
+                                        onChange={(e) => setUsernameInput(e.target.value)}
                                     />
                                 </div>
                             </div>
                         </CardContent>
                         <CardFooter>
-                            <Button className="w-full" onClick={handleSubmit} disabled={isLoading}>
+                            <Button className="w-full" onClick={handleSubmitUserName} disabled={isLoading}>
                                 {isLoading ? "Submitting..." : "Set Name"}
                             </Button>
                         </CardFooter>
@@ -138,8 +140,8 @@ export default function Lobby() {
                                     <div className="space-y-2">
                                         <Input
                                             placeholder="Enter your username"
-                                            value={username}
-                                            onChange={(e) => setUsername(e.target.value)}
+                                            value={usernameInput}
+                                            onChange={(e) => setUsernameInput(e.target.value)}
                                         />
                                     </div>
                                 </div>
@@ -147,7 +149,7 @@ export default function Lobby() {
                         </CardContent>
                         <CardFooter>
                             {isEditing ? (
-                                <Button className="w-full" onClick={handleSubmit} disabled={isLoading}>
+                                <Button className="w-full" onClick={handleSubmitUserName} disabled={isLoading}>
                                     {isLoading ? "Submitting..." : "Submit"}
                                 </Button>
                             ) : (
@@ -224,17 +226,17 @@ export default function Lobby() {
                                     >
                                         <div>
                                             <h3 className="font-medium">
-                                                {room.roomName} Created by {room.username}
+                                                {room.roomName} Created by {room.owner}
                                             </h3>
                                             <p className="text-sm text-muted-foreground">Players: {room.players}/2</p>
                                         </div>
                                         <Button
                                             onClick={() => joinRoom(room.roomName)}
                                             variant={room.players >= 2 ? "outline" : "default"}
-                                            disabled={room.players >= 2}
+                                            // disabled={room.players >= 2}
                                         >
                                             <LogIn className="h-4 w-4 mr-2" />
-                                            {room.players >= 2 ? "Full" : "Join"}
+                                            {room.players >= 2 ? "Full: Join As Spectator" : "Join"}
                                         </Button>
                                     </div>
                                 ))}

@@ -4,7 +4,7 @@ import Layout from "./components/Layout";
 import Lobby from "./pages/Lobby";
 import GameRoom from "./pages/GameRoom";
 import NotFound from "./pages/NotFound";
-import CanvasComponent from "./components/CanvasComponent";
+// import CanvasComponent from "./components/CanvasComponent";
 import { SocketProvider } from "./context/SocketContext";
 
 function App() {
