@@ -70,11 +70,12 @@ export default function GameRoom() {
         };
 
         const initServerPlayers = (serverData) => {
-            debugger;
-
-            // console.log("Received init serverData:", serverData);
-            // if (this.localPlayerId != serverData.playerId) {
-            //     this.localPlayerId = serverData.playerId;
+            // Clear existing players to ensure a fresh state
+            allPlayers.current.clear();
+            // Set the local player ID if it's provided in serverData
+            // This assumes serverData.localPlayerId is sent by the server
+            // if (serverData.localPlayerId) {
+            //     localPlayerId.current = serverData.localPlayerId;
             // }
             const FLOOR_Y = CONSTS.CANVAS_HEIGHT - CONSTS.FLOOR_HEIGHT;
             // Add all existing players
@@ -83,15 +84,14 @@ export default function GameRoom() {
                 serverPlayer.y = FLOOR_Y - CONSTS.PLAYER_HEIGHT;
                 // Set default facing direction if not provided
                 serverPlayer.facing = serverPlayer.facing || "right";
-                // Initialize interpolation targets
+                // Initialize interpolation targets for smooth movement
                 serverPlayer.targetX = serverPlayer.x;
-                // serverPlayer.targetHeight = serverPlayer.height || 0;
+                serverPlayer.targetHeight = serverPlayer.height || 0;
                 allPlayers.current.set(serverPlayer.id, serverPlayer);
             });
         };
 
         const addServerPlayer = (serverPlayer) => {
-            debugger;
             // console.log("New serverPlayer joined:", serverPlayer.id);
             // Set initial y position on the floor
             serverPlayer.y = CONSTS.FLOOR_Y - CONSTS.PLAYER_HEIGHT;
@@ -99,7 +99,7 @@ export default function GameRoom() {
             serverPlayer.facing = serverPlayer.facing || "right";
             // Initialize interpolation targets
             serverPlayer.targetX = serverPlayer.x;
-            // serverPlayer.targetHeight = serverPlayer.height || 0;
+            serverPlayer.targetHeight = serverPlayer.height || 0;
             allPlayers.current.set(serverPlayer.id, serverPlayer);
         };
 
