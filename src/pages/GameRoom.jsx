@@ -28,7 +28,7 @@ export default function GameRoom() {
     useEffect(() => {
         let errMsg = error?.message || error;
         if (errMsg) {
-            if (errMsg === "You are not in this room") {
+            if (errMsg === "You are not in this room" || errMsg === "Game ended: Opponent left.") {
                 navigate("/");
             }
         }
@@ -44,11 +44,12 @@ export default function GameRoom() {
         // This check prevents re-registering listeners on every render
         if (!socket) return;
 
-        console.log("mounted GameRoom with roomId:", roomId);
+        console.log(`GameRoom: Emitting verifyRoom for roomId: ${roomId}`);
         socket.emit("verifyRoom", roomId);
         setRoomState("verifying");
 
         const handleRoomVerified = (inRoomAs) => {
+            console.log(`GameRoom: Received roomVerified. inRoomAs: ${inRoomAs}`);
             if (!inRoomAs) {
                 navigate("/");
                 return;
@@ -113,7 +114,6 @@ export default function GameRoom() {
         return () => {
             socket.off("roomVerified", handleRoomVerified);
             socket.off("characterSelected", handleCharacterSelected);
-            // socket.off("characterPreview", handleCharacterPreview);
         };
     }, [roomId, socket]); // Dependencies for setup
 

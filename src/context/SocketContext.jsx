@@ -54,8 +54,10 @@ export function SocketProvider({ children }) {
         };
 
         const onJoinGameRoom = ({ roomName, asPlayerType, player1, player2, spectators }) => {
+            console.log(`SocketContext: Received joinGameRoom for room ${roomName}, as ${asPlayerType}`);
             setPlayerType(asPlayerType);
             navigate(`/game/${roomName}`);
+            console.log(`SocketContext: Navigating to /game/${roomName}`);
         };
 
         const onUserData = (data) => {

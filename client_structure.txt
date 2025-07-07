@@ -1,0 +1,61 @@
+/home/dave/code/react-fighter
+├── client_structure.txt
+├── components.json
+├── eslint.config.js
+├── index.html
+├── jsconfig.json
+├── package.json
+├── package-lock.json
+├── public
+│   └── vite.svg
+├── README.md
+├── src
+│   ├── API.js
+│   ├── App.css
+│   ├── App.jsx
+│   ├── assets
+│   │   └── react.svg
+│   ├── components
+│   │   ├── CharacterSelect.jsx
+│   │   │   ├── CharacterSelect.jsx
+│   │   │   ├── DrawCharPortrait.jsx
+│   │   │   └── index.jsx
+│   │   ├── FightCanvas.jsx
+│   │   ├── Layout.jsx
+│   │   ├── Navbar.jsx
+│   │   └── ui
+│   │       ├── alert.tsx
+│   │       ├── badge.tsx
+│   │       ├── button.tsx
+│   │       ├── card.tsx
+│   │       ├── input.tsx
+│   │       ├── progress.tsx
+│   │       └── scroll-area.tsx
+│   ├── context
+│   │   └── SocketContext.jsx
+│   ├── gameConfig
+│   │   └── Characters.js
+│   ├── game-engine
+│   │   ├── Canvas.js
+│   │   ├── Characters
+│   │   │   ├── BasePlayer.js
+│   │   │   └── Basic.js
+│   │   ├── contants.js
+│   │   ├── Draw.js
+│   │   ├── GameLoop.js
+│   │   ├── InputBatchHandler.js
+│   │   └── LatencyMonitor.js
+│   ├── index.css
+│   ├── lib
+│   │   └── utils.ts
+│   ├── main.jsx
+│   └── pages
+│       ├── GameRoom.jsx
+│       ├── Lobby.jsx
+│       └── NotFound.jsx
+├── tsconfig.app.json
+├── tsconfig.json
+├── tsconfig.node.json
+└── vite.config.js
+
+12 directories, 46 files
