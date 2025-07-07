@@ -155,24 +155,30 @@ class GameLoop {
                     // Other players - interpolate movement
                     let otherPlayer = this.allPlayers.get(serverPlayer.id);
                     if (!otherPlayer) {
+                        debugger;
+                        //THIS SHOULD NEVER HAPPEN
+                        throw new Error("Other player not found in allPlayers map: " + serverPlayer.id);
                         // console.log("Creating new remote player:", serverPlayer.id);
-                        otherPlayer = {
-                            id: serverPlayer.id,
-                            x: serverPlayer.x,
-                            y: this.FLOOR_Y - this.PLAYER_HEIGHT - (serverPlayer.height || 0),
-                            height: serverPlayer.height || 0,
-                            color: "#" + Math.floor(Math.random() * 16777215).toString(16),
-                            facing: serverPlayer.facing || "right",
-                            targetX: serverPlayer.x,
-                            // targetHeight: serverPlayer.height || 0,
-                            isPunching: false,
-                            isKicking: false,
-                        };
-                        this.allPlayers.set(serverPlayer.id, otherPlayer);
+                        // otherPlayer = {
+                        //     id: serverPlayer.id,
+                        //     x: serverPlayer.x,
+                        //     y: this.FLOOR_Y - this.PLAYER_HEIGHT - (serverPlayer.height || 0),
+                        //     targetHeight: serverPlayer.height || 0,
+                        //     color: "#" + Math.floor(Math.random() * 16777215).toString(16),
+                        //     facing: serverPlayer.facing || "right",
+                        //     targetX: serverPlayer.x,
+                        //     // height: serverPlayer.height || 0,
+                        //     isPunching: false,
+                        //     isKicking: false,
+                        //     isJumping: serverPlayerLocal.isJumping || false,
+                        // };
+                        // this.allPlayers.set(serverPlayer.id, otherPlayer);
                     } else {
                         // Existing player - update targets for interpolation
                         otherPlayer.targetX = serverPlayer.x;
-                        // otherPlayer.targetHeight = serverPlayer.height || 0;
+                        otherPlayer.targetHeight = serverPlayer.height || 0;
+                        otherPlayer.isJumping = serverPlayer.isJumping || false;
+                        otherPlayer.y = this.FLOOR_Y - this.PLAYER_HEIGHT - (serverPlayer.height || 0);
 
                         // Preserve visual state
                         const visualState = {
