@@ -26,7 +26,7 @@ export default function Lobby() {
     }, []);
 
     // Set up room created listener
-    useState(() => {
+    useEffect(() => {
         const onRoomCreated = (roomId) => {
             navigate(`/game/${roomId}`);
         };

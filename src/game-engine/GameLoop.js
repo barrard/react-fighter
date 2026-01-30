@@ -81,8 +81,6 @@ class GameLoop {
 
     init() {
         this.localInputs.gameLoop = this;
-        // Initialize game state
-        this.localInputs.init();
         // this.socket.on("initServerPlayers", (serverData) => {
         //     debugger;
 
@@ -232,149 +230,86 @@ class GameLoop {
         }
     }
 
-    // Modify handleServerUpdateLocalPlayer to better handle time differences
     handleServerUpdateLocalPlayer(serverPlayerLocal) {
         if (!this.localPlayerId) return;
         const localFuturePlayer = this.allPlayers.get(this.localPlayerId);
         if (!localFuturePlayer) return;
-        const sentInputWithTicks = this.localInputs.sentInputWithTicks;
 
-        if (sentInputWithTicks.length > 0 && serverPlayerLocal.currentTick != this.localInputs.currentTick) {
-            // Preserve visual state
-            const visualState = {
-                color: localFuturePlayer.color,
-                id: localFuturePlayer.id,
-                isPunching: localFuturePlayer.isPunching,
-                isKicking: localFuturePlayer.isKicking,
-            };
-            const futureClientPosition = {
+        if (this._reconLogCount === undefined) this._reconLogCount = 0;
+        if (this._reconLogCount < 10) {
+            console.log(`[RECONCILE] serverX=${serverPlayerLocal.x}, clientX=${localFuturePlayer.x}, lastProcessedTick=${serverPlayerLocal.lastProcessedTick}, simulationTick=${serverPlayerLocal.simulationTick}, estTick=${this.localInputs.getEstimatedServerTick()}, inputHistorySize=${Object.keys(this.localInputs.inputHistory).length}`);
+            this._reconLogCount++;
+        }
+
+        // Preserve visual state
+        const visualState = {
+            color: localFuturePlayer.color,
+            id: localFuturePlayer.id,
+            isPunching: localFuturePlayer.isPunching,
+            isKicking: localFuturePlayer.isKicking,
+        };
+        const futureClientPosition = {
+            x: localFuturePlayer.x,
+            y: localFuturePlayer.y,
+            height: localFuturePlayer.height,
+        };
+
+        // 1. Apply authoritative server state
+        localFuturePlayer.x = serverPlayerLocal.x;
+        localFuturePlayer.height = serverPlayerLocal.height || 0;
+        localFuturePlayer.y = this.FLOOR_Y - this.PLAYER_HEIGHT - localFuturePlayer.height;
+        localFuturePlayer.horizontalVelocity = serverPlayerLocal.horizontalVelocity || 0;
+        localFuturePlayer.verticalVelocity = serverPlayerLocal.verticalVelocity || 0;
+        localFuturePlayer.isJumping = serverPlayerLocal.isJumping || false;
+        if (serverPlayerLocal.facing) {
+            localFuturePlayer.facing = serverPlayerLocal.facing;
+        }
+
+        // 2. Tick-based reconciliation
+        const lastProcessedTick = serverPlayerLocal.lastProcessedTick || 0;
+        const currentEstimatedTick = this.localInputs.getEstimatedServerTick();
+
+        if (lastProcessedTick > 0 && currentEstimatedTick > lastProcessedTick) {
+            let currentState = {
                 x: localFuturePlayer.x,
                 y: localFuturePlayer.y,
                 height: localFuturePlayer.height,
-                currentTick: localFuturePlayer.currentTick,
                 horizontalVelocity: localFuturePlayer.horizontalVelocity,
                 verticalVelocity: localFuturePlayer.verticalVelocity,
+                facing: localFuturePlayer.facing,
+                isJumping: localFuturePlayer.isJumping || localFuturePlayer.height > 0,
             };
 
-            // if (localFuturePlayer.isJumping) {
-            // console.log({
-            //     "FROM SERVER.currentTick": serverPlayerLocal.currentTick,
-            //     "serPlyr.x": serverPlayerLocal.x,
-            //     // "serPlyr.y": serverPlayerLocal.y,
-            //     "serPlyr.height": serverPlayerLocal.height,
-            //     "serPlyr.verticalVelocity": serverPlayerLocal.verticalVelocity,
-            //     "serPlyr.horizontalVelocity": serverPlayerLocal.horizontalVelocity,
-            // });
-
-            // console.log({
-            //     "LOCALFUTUREPLAYER.currentTick": futureClientPosition.currentTick,
-            //     "futClitPos.x": futureClientPosition.x,
-            //     "futClitPos.y": futureClientPosition.y,
-            //     "futClitPos.height": futureClientPosition.height,
-            //     "futClitPos.verticalVelocity": futureClientPosition.verticalVelocity,
-            //     "futClitPos.horizontalVelocity": futureClientPosition.horizontalVelocity,
-            // });
-            // }
-
-            // Apply server state
-            localFuturePlayer.x = serverPlayerLocal.x;
-            localFuturePlayer.height = serverPlayerLocal.height || 0;
-            localFuturePlayer.y = this.FLOOR_Y - this.PLAYER_HEIGHT - localFuturePlayer.height;
-            // isJumping = serverPlayerLocal.isJumping !== undefined ? serverPlayerLocal.isJumping : serverPlayerLocal.height > 0;
-            localFuturePlayer.horizontalVelocity = serverPlayerLocal.horizontalVelocity || 0;
-            localFuturePlayer.verticalVelocity = serverPlayerLocal.verticalVelocity || 0;
-            localFuturePlayer.isJumping = serverPlayerLocal.isJumping || false;
-            // Always update facing direction
-            if (serverPlayerLocal.facing) {
-                localFuturePlayer.facing = serverPlayerLocal.facing;
+            // Replay unprocessed inputs from inputHistory
+            for (let tick = lastProcessedTick + 1; tick <= currentEstimatedTick; tick++) {
+                const input = this.localInputs.inputHistory[tick];
+                if (input) {
+                    currentState = this.simulatePlayerMovementFrame(currentState, input);
+                }
             }
 
-            // Find the input data with this tick
-            const matchingServerTickIndex = sentInputWithTicks.findIndex(
-                (data) => data.currentTick === serverPlayerLocal.currentTick + 1
-            );
-
-            if (matchingServerTickIndex >= 0) {
-                // We found the server tick in our sent inputs
-
-                // Remove all inputs up to and including the current server tick
-                // as they've been processed by the server
-                const inputsToReplay = sentInputWithTicks.slice(matchingServerTickIndex);
-                // console.log(
-                //     "inputsToReplay ",
-                //     inputsToReplay.map((d) => d.currentTick)
-                // );
-                // Remove processed inputs from our sent inputs array
-                this.localInputs.sentInputWithTicks = inputsToReplay;
-
-                // Replay all inputs that haven't been processed by the server yet
-                let currentState = {
-                    x: localFuturePlayer.x,
-                    y: localFuturePlayer.y,
-                    height: localFuturePlayer.height,
-                    horizontalVelocity: localFuturePlayer.horizontalVelocity,
-                    verticalVelocity: localFuturePlayer.verticalVelocity,
-                    facing: localFuturePlayer.facing,
-                    isJumping: localFuturePlayer.isJumping || localFuturePlayer.height > 0,
-                };
-
-                // const MS_PER_SERVER_TICK = 1000 / this.SERVER_TICK_RATE; // 50ms per tick
-
-                // Replay each input with proper time scaling
-                for (const input of inputsToReplay) {
-                    for (let i = 0; i < input.keysPressed.length; i++) {
-                        // this is assuming always and forever
-                        // that the server tick rate is 50ms
-                        // and 3 ticks exist
-                        currentState = this.simulatePlayerMovementFrame(currentState, input.keysPressed[i]);
-                    }
-                }
-
-                // console.log(
-                //     "inputsOnDeck ",
-                //     this.inputsOnDeck.map((d) => d)
-                // );
-
-                for (let x = 0; x < this.inputsOnDeck.length; x++) {
-                    currentState = this.simulatePlayerMovementFrame(currentState, this.inputsOnDeck[x]);
-                }
-
-                // Update localFuturePlayer with predicted state
-                localFuturePlayer.x = currentState.x;
-                localFuturePlayer.y = currentState.y;
-                localFuturePlayer.height = currentState.height;
-                localFuturePlayer.facing = currentState.facing;
-                localFuturePlayer.horizontalVelocity = currentState.horizontalVelocity;
-                localFuturePlayer.verticalVelocity = currentState.verticalVelocity;
-                // console.log({
-                //     "locAfRecil.currentTick": localFuturePlayer.currentTick,
-                //     "locAfRecil.x": localFuturePlayer.x,
-                //     "locAfRecil.y": localFuturePlayer.y,
-                //     "locAfRecil.height": localFuturePlayer.height,
-                //     "locAfRecil.verticalVelocity": localFuturePlayer.verticalVelocity,
-                //     "locAfRecil.horizontalVelocity": localFuturePlayer.horizontalVelocity,
-                //     "locAfRecil.isJumping": localFuturePlayer.isJumping,
-                // });
-
-                this.localX_Adjustment = futureClientPosition.x - localFuturePlayer.x;
-                if (this.localX_Adjustment > 20) {
-                    debugger;
-                }
-                this.totalXBeenAdjusted = 0;
-                // Other state properties as needed
-                // Restore visual state
-                Object.assign(localFuturePlayer, visualState);
-            } else {
-                console.error(
-                    "~! matchingServerTickIndex < 0 for serverPlayerLocal.currentTick " + serverPlayerLocal.currentTick
-                );
-                // Server sent us a tick we don't have record of
-                // This could happen if there was significant packet loss
-                // In this case, just accept the server state and clear inputs
-                // this.localInputs.sentInputWithTicks = [];
-                // console.warn("Server tick not found in client history, resetting prediction");
+            // Also replay any unsent inputs still on deck
+            for (let i = 0; i < this.inputsOnDeck.length; i++) {
+                currentState = this.simulatePlayerMovementFrame(currentState, this.inputsOnDeck[i]);
             }
+
+            // Apply reconciled state
+            localFuturePlayer.x = currentState.x;
+            localFuturePlayer.y = currentState.y;
+            localFuturePlayer.height = currentState.height;
+            localFuturePlayer.horizontalVelocity = currentState.horizontalVelocity;
+            localFuturePlayer.verticalVelocity = currentState.verticalVelocity;
+
+            // Compute smoothing correction
+            this.localX_Adjustment = futureClientPosition.x - localFuturePlayer.x;
+            this.totalXBeenAdjusted = 0;
+
+            // Prune old inputs
+            this.localInputs.pruneInputsBefore(lastProcessedTick);
         }
+
+        // Restore visual state
+        Object.assign(localFuturePlayer, visualState);
     }
 
     // You'll need to implement this function to simulate one tick of player movement
@@ -458,13 +393,11 @@ class GameLoop {
         //     facing: player.facing,
         //     isJumping: player.isJumping,
         // });
-        if (player.currentTick !== this.localInputs.currentTick) {
-            player.currentTick = this.localInputs.currentTick;
-        }
-        // if (!this.localInputs.keysPressed.ArrowRight) {
-        //     console.log("Right should be held", this.localInputs);
-        // }
-        this.inputsOnDeck.push({ ...this.localInputs.keysPressed, frame: this.frame });
+        this.inputsOnDeck.push({
+            ...this.localInputs.keysPressed,
+            frame: this.frame,
+            serverTick: this.localInputs.getEstimatedServerTick(),
+        });
         // Apply horizontal movement with time scaling
         if (onGround) {
             const keysPressed = this.localInputs.keysPressed;
@@ -496,7 +429,7 @@ class GameLoop {
         // Apply horizontal velocity with smoothing
         player.x += this.horizontalVelocity;
         // Constrain player within boundaries //NEEDS TODO BETTER
-        player.x = Math.max(0, Math.min(this.canvas.width - this.PLAYER_WIDTH, player.x));
+        player.x = Math.max(0, Math.min(this.canvas.width - (player.characterWidth || this.PLAYER_WIDTH), player.x));
         const adj = this.localX_Adjustment != 0 ? Math.floor(this.localX_Adjustment / 3) : this.localX_Adjustment;
         this.totalXBeenAdjusted += adj;
         if (Math.abs(this.totalXBeenAdjusted) < Math.abs(this.localX_Adjustment)) {
@@ -554,8 +487,7 @@ class GameLoop {
             //     ArrowLeft: this.localInputs.keysPressed["ArrowLeft"],
             //     ArrowUp: this.localInputs.keysPressed["ArrowUp"],
             // });
-            this.localInputs.sendBatch(); //.bind(this.localInputs);
-            this.localInputs.updateTick(); //.bind(this.localInputs);
+            this.localInputs.sendBatch();
         }
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);

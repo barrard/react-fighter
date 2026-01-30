@@ -23,6 +23,7 @@ export default function GameRoom() {
     const [player2, setPlayer2] = useState(null);
     const [roomVerified, setRoomVerified] = useState(false); // This will hold the user's role: 'player1', 'player2', or 'spectator'
     const [gameTimer, setGameTimer] = useState(99); // Add a state for the game timer
+    const [matchStartData, setMatchStartData] = useState(null);
     const allPlayers = useRef(new Map()); // Store all players in the room
     // THIS HOOK IS PRESERVED FROM YOUR ORIGINAL CODE
     useEffect(() => {
@@ -104,16 +105,24 @@ export default function GameRoom() {
             allPlayers.current.set(serverPlayer.id, serverPlayer);
         };
 
+        const handleMatchStart = (data) => {
+            console.log("GameRoom: Received matchStart", data);
+            setMatchStartData({ ...data, receivedAt: performance.now() });
+        };
+
         socket.on("playerJoined", addServerPlayer);
         socket.on("initServerPlayers", initServerPlayers);
+        socket.on("matchStart", handleMatchStart);
 
         socket.on("roomVerified", handleRoomVerified);
         socket.on("characterSelected", handleCharacterSelected);
-        // socket.on("characterPreview", handleCharacterPreview);
 
         return () => {
             socket.off("roomVerified", handleRoomVerified);
             socket.off("characterSelected", handleCharacterSelected);
+            socket.off("playerJoined", addServerPlayer);
+            socket.off("initServerPlayers", initServerPlayers);
+            socket.off("matchStart", handleMatchStart);
         };
     }, [roomId, socket]); // Dependencies for setup
 
@@ -164,6 +173,7 @@ export default function GameRoom() {
                         localPlayerId={socket.id}
                         player1={player1}
                         player2={player2}
+                        matchStartData={matchStartData}
                     />
                 )}
             </main>

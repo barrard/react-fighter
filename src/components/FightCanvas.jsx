@@ -13,7 +13,7 @@ import Canvas from "../game-engine/Canvas";
 import InputBatchHandler from "../game-engine/InputBatchHandler";
 import LatencyMonitor from "../game-engine/LatencyMonitor";
 
-export default function FightCanvas({ player1, player2, localPlayerId, allPlayers }) {
+export default function FightCanvas({ player1, player2, localPlayerId, allPlayers, matchStartData }) {
     const { socket } = useSocket();
     const canvasRef = useRef(null);
     const gameLoopRef = useRef(null);
@@ -21,18 +21,21 @@ export default function FightCanvas({ player1, player2, localPlayerId, allPlayer
     useEffect(() => {
         if (socket && canvasRef.current) {
             const latencyMonitor = new LatencyMonitor(socket);
+            const inputBatcher = new InputBatchHandler(socket);
+            inputBatcher.init(latencyMonitor);
+
+            if (matchStartData) {
+                inputBatcher.applyMatchStart(matchStartData);
+            }
 
             // --- 1. SETUP PHASE ---
             console.log("Game Engine: Initializing in FightCanvas...");
-            const ONE_SECOND = 1000;
-            const FPS_SERVER = 20;
-            const SERVER_FPS_TIME = ONE_SECOND / FPS_SERVER;
             // We simply create the instance of GameLoop.
             // Its own constructor and socket listeners will handle starting the game.
             gameLoopRef.current = new GameLoop(
                 new Canvas(socket, canvasRef.current),
                 socket,
-                new InputBatchHandler(socket, SERVER_FPS_TIME),
+                inputBatcher,
                 localPlayerId,
                 allPlayers
             );

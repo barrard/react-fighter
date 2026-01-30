@@ -28,6 +28,9 @@ export function SocketProvider({ children }) {
     const navigate = useNavigate();
 
     useEffect(() => {
+        // Sync initial connection state in case socket connected before listener registration
+        setIsConnected(socket.connected);
+
         // Connect to socket
         const onConnect = () => {
             setIsConnected(true);
@@ -81,6 +84,8 @@ export function SocketProvider({ children }) {
             socket.off("disconnect", onDisconnect);
             socket.off("roomsList", onRoomsList);
             socket.off("error", onError);
+            socket.off("joinGameRoom", onJoinGameRoom);
+            socket.off("userData", onUserData);
         };
     }, []);
 

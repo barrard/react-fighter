@@ -24,11 +24,11 @@ const CONSTS = {
     LEG_Y_OFFSET: 70, // Position from top of character
 
     //SERVER SIDE
-    SERVER_TICK_RATE: 20,
+    SERVER_TICK_RATE: 60,
 
     //SCENE
-    CANVAS_HEIGHT: 782,
-    CANVAS_WIDTH: 937,
+    CANVAS_HEIGHT: 576,
+    CANVAS_WIDTH: 1024,
     FLOOR_Y: () => {
         return CONSTS.CANVAS_HEIGHT - CONSTS.FLOOR_HEIGHT;
     },

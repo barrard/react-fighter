@@ -39,20 +39,5 @@ export default class Canvas {
         this.FLOOR_HEIGHT = FLOOR_HEIGHT;
         this.FLOOR_Y = CANVAS_HEIGHT - FLOOR_HEIGHT;
 
-        // Initial resize and event listener
-
-        this.resizeCanvas();
-        window.addEventListener("resize", this.resizeCanvas);
-    }
-
-    // Set canvas to full screen
-    resizeCanvas() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
-        // Update floor position after resize
-        this.FLOOR_Y = this.canvas.height - this.FLOOR_HEIGHT;
-
-        // Debug
-        console.log(`Canvas resized: ${this.canvas.width}x${this.canvas.height}, Floor Y: ${this.FLOOR_Y}`);
     }
 }
