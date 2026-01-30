@@ -1,5 +1,6 @@
 // import CONSTS from "/js/contants.js";
 import CONSTS from "./contants.js";
+import { decodeGameStatePayload } from "@shared/stateCodec.js";
 import { DrawPlayer, DrawPunch, DrawKick, DrawFaceDirection, DrawYou, DrawFloor, DrawInitialScene } from "./Draw.js";
 // import { DrawPlayer, DrawPunch, DrawKick, DrawFaceDirection, DrawYou, DrawFloor, DrawInitialScene  } from "http://localhost:3000/js/Draw.js";
 
@@ -144,7 +145,8 @@ class GameLoop {
         });
 
         // Modify the gameState handler for other players
-        this.socket.on("gameState", (data) => {
+        this.socket.on("gs", (rawData) => {
+            const data = decodeGameStatePayload(rawData);
             // const serverTime = Date.now();
             data.players.forEach((serverPlayer) => {
                 if (serverPlayer.id === this.localPlayerId) {

@@ -1,4 +1,6 @@
 // InputBatchHandler.js
+import { encodeInputMask } from "@shared/inputFlags.js";
+
 export default class InputBatchHandler {
     constructor(socket) {
         this.socket = socket;
@@ -119,6 +121,7 @@ export default class InputBatchHandler {
     sendBatch() {
         // Tag each frame in inputsOnDeck with its estimated server tick
         const frames = [...this.gameLoop.inputsOnDeck];
+        if (frames.length === 0) return;
         for (const frame of frames) {
             if (frame.serverTick == null || isNaN(frame.serverTick)) {
                 frame.serverTick = this.getEstimatedServerTick();
@@ -128,7 +131,11 @@ export default class InputBatchHandler {
         }
 
         const data = {
-            keysPressed: frames,
+            b: frames.map((frame) => ({
+                t: frame.serverTick,
+                f: frame.frame ?? null,
+                k: encodeInputMask(frame),
+            })),
         };
 
         // Uncomment for send debugging:
@@ -136,7 +143,7 @@ export default class InputBatchHandler {
         // console.log(`[CLIENT SEND] batch: ${frames.length} frames, ticks=[${ticks}], estTick=${this.getEstimatedServerTick()}`);
 
         this.gameLoop.inputsOnDeck = [];
-        this.socket.emit("playerInputBatch", data);
+        this.socket.emit("ib", data);
     }
 
     pruneInputsBefore(tick) {

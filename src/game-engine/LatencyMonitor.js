@@ -27,9 +27,11 @@ class LatencyMonitor {
 
     setupListeners() {
         // Listen for pong responses from server
-        this.socket.on("pong", (data) => {
+        this.socket.on("pong", (data = {}) => {
             const now = Date.now();
-            const latency = now - data.clientTimestamp;
+            const clientTimestamp = data.ct ?? data.clientTimestamp;
+            if (!clientTimestamp) return;
+            const latency = now - clientTimestamp;
 
             this.updateLatencyStats(latency);
             this.displayLatency();
@@ -44,7 +46,7 @@ class LatencyMonitor {
 
     sendPing() {
         this.socket.emit("ping", {
-            clientTimestamp: Date.now(),
+            ct: Date.now(),
         });
     }
 
