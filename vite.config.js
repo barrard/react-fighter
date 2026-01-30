@@ -22,6 +22,9 @@ export default defineConfig(({ mode }) => {
                 allow: [projectRoot, sharedDir],
             },
         },
+        preview: {
+            allowedHosts: ["fight.raveaboutdave.com"],
+        },
         define: {
             // Make env vars available to the client
             "process.env": env,

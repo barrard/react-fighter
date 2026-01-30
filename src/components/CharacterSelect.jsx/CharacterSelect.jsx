@@ -154,9 +154,10 @@ const PlayerSelectionUI = ({ playerTitle, selectedCharacter, isCurrentUser, onCo
 export default function CharacterSelect({ player1, player2, role }) {
     const { socket } = useSocket();
     const [characters, setCharacters] = useState(null);
+    const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
     useEffect(() => {
-        fetch("http://localhost:3000/api/characters")
+        fetch(`${API_BASE}/characters`)
             .then((res) => res.json())
             .then((data) => setCharacters(data));
     }, []);
