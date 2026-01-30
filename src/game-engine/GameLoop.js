@@ -282,20 +282,14 @@ class GameLoop {
             };
 
             // Replay unprocessed inputs from inputHistory
-            const replayRange = currentEstimatedTick - lastProcessedTick;
-            let replayedCount = 0;
-            let replayedWithMovement = 0;
             for (let tick = lastProcessedTick + 1; tick <= currentEstimatedTick; tick++) {
                 const input = this.localInputs.inputHistory[tick];
                 if (input) {
-                    replayedCount++;
-                    if (input.ArrowLeft || input.ArrowRight || input.ArrowUp) replayedWithMovement++;
                     currentState = this.simulatePlayerMovementFrame(currentState, input);
                 }
             }
 
             // Also replay any unsent inputs still on deck
-            const onDeckCount = this.inputsOnDeck.length;
             for (let i = 0; i < this.inputsOnDeck.length; i++) {
                 currentState = this.simulatePlayerMovementFrame(currentState, this.inputsOnDeck[i]);
             }
@@ -308,26 +302,14 @@ class GameLoop {
             localFuturePlayer.verticalVelocity = currentState.verticalVelocity;
 
             // Compute smoothing correction
-            const prevAdjustment = this.localX_Adjustment;
             this.localX_Adjustment = futureClientPosition.x - localFuturePlayer.x;
             this.totalXBeenAdjusted = 0;
 
-            // Debug log
-            if (this._reconLogCount === undefined) this._reconLogCount = 0;
-            if (this._reconLogCount < 30) {
-                const delta = Math.round(futureClientPosition.x - serverPlayerLocal.x);
-                console.log(`[RECONCILE] predicted=${Math.round(futureClientPosition.x)}, serverX=${Math.round(serverPlayerLocal.x)}, afterReplay=${Math.round(localFuturePlayer.x)}, correction=${Math.round(this.localX_Adjustment)}, delta=${delta}, replay=${replayedCount}/${replayRange}ticks(${replayedWithMovement}mov), onDeck=${onDeckCount}, lastProc=${lastProcessedTick}, estTick=${currentEstimatedTick}`);
-                this._reconLogCount++;
-            }
+            // Uncomment for reconciliation debugging:
+            // console.log(`[RECONCILE] predicted=${Math.round(futureClientPosition.x)}, serverX=${Math.round(serverPlayerLocal.x)}, afterReplay=${Math.round(localFuturePlayer.x)}, correction=${Math.round(this.localX_Adjustment)}, lastProc=${lastProcessedTick}, estTick=${currentEstimatedTick}`);
 
             // Prune old inputs
             this.localInputs.pruneInputsBefore(lastProcessedTick);
-        } else {
-            if (this._reconLogCount === undefined) this._reconLogCount = 0;
-            if (this._reconLogCount < 30) {
-                console.log(`[RECONCILE-SKIP] serverX=${Math.round(serverPlayerLocal.x)}, clientX=${Math.round(futureClientPosition.x)}, lastProc=${lastProcessedTick}, estTick=${currentEstimatedTick}, noReplay`);
-                this._reconLogCount++;
-            }
         }
 
         // Restore visual state
@@ -453,11 +435,6 @@ class GameLoop {
         this.totalXBeenAdjusted += adj;
         if (Math.abs(this.totalXBeenAdjusted) < Math.abs(this.localX_Adjustment)) {
             player.x += adj;
-            if (this._smoothLogCount === undefined) this._smoothLogCount = 0;
-            if (this._smoothLogCount < 20 && adj !== 0) {
-                console.log(`[SMOOTH] adj=${adj}, totalAdj=${this.totalXBeenAdjusted}, target=${this.localX_Adjustment}, x=${Math.round(player.x)}, hVel=${this.horizontalVelocity}`);
-                this._smoothLogCount++;
-            }
         }
 
         // console.log({

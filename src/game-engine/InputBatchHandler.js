@@ -46,15 +46,8 @@ export default class InputBatchHandler {
             : 0;
         this.estimatedOneWayDelay = (rawLatency && !isNaN(rawLatency)) ? rawLatency / 2 : 0;
         this.isMatchStarted = true;
-        console.log("InputBatchHandler: matchStart applied", {
-            localMatchStartTime: this.localMatchStartTime,
-            serverTickAtStart: this.serverTickAtStart,
-            matchStartTick: this.matchStartTick,
-            tickRate: this.tickRate,
-            rawLatency: rawLatency,
-            estimatedOneWayDelay: this.estimatedOneWayDelay,
-            estimatedTickNow: this.getEstimatedServerTick(),
-        });
+        // Uncomment for match start debugging:
+        // console.log("InputBatchHandler: matchStart applied", { localMatchStartTime: this.localMatchStartTime, serverTickAtStart: this.serverTickAtStart, tickRate: this.tickRate, estimatedOneWayDelay: this.estimatedOneWayDelay, estimatedTickNow: this.getEstimatedServerTick() });
     }
 
     getEstimatedServerTick() {
@@ -138,13 +131,9 @@ export default class InputBatchHandler {
             keysPressed: frames,
         };
 
-        if (this._sendLogCount === undefined) this._sendLogCount = 0;
-        if (this._sendLogCount < 20) {
-            const ticks = frames.map(f => f.serverTick);
-            const hasMovement = frames.some(f => f.ArrowLeft || f.ArrowRight || f.ArrowUp);
-            console.log(`[CLIENT SEND] batch: ${frames.length} frames, ticks=[${ticks}], isMatchStarted=${this.isMatchStarted}, estTick=${this.getEstimatedServerTick()}, hasMovement=${hasMovement}`);
-            this._sendLogCount++;
-        }
+        // Uncomment for send debugging:
+        // const ticks = frames.map(f => f.serverTick);
+        // console.log(`[CLIENT SEND] batch: ${frames.length} frames, ticks=[${ticks}], estTick=${this.getEstimatedServerTick()}`);
 
         this.gameLoop.inputsOnDeck = [];
         this.socket.emit("playerInputBatch", data);
