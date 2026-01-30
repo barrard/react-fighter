@@ -24,6 +24,7 @@ class GameLoop {
         this.inputsOnDeck = [];
         this.localX_Adjustment = 0;
         this.totalXBeenAdjusted = 0;
+        this.pendingServerState = null;
         setInterval(() => {
             const diff = this.frame - this.prevFrame;
             // console.log({ prevFrame: this.prevFrame, frame: this.frame, diff });
@@ -147,8 +148,8 @@ class GameLoop {
             // const serverTime = Date.now();
             data.players.forEach((serverPlayer) => {
                 if (serverPlayer.id === this.localPlayerId) {
-                    // Local player - handle with prediction/reconciliation
-                    this.handleServerUpdateLocalPlayer(serverPlayer);
+                    // Defer reconciliation to next frame so sendBatch runs first
+                    this.pendingServerState = serverPlayer;
                 } else {
                     // Other players - interpolate movement
                     let otherPlayer = this.allPlayers.get(serverPlayer.id);
@@ -235,12 +236,6 @@ class GameLoop {
         const localFuturePlayer = this.allPlayers.get(this.localPlayerId);
         if (!localFuturePlayer) return;
 
-        if (this._reconLogCount === undefined) this._reconLogCount = 0;
-        if (this._reconLogCount < 10) {
-            console.log(`[RECONCILE] serverX=${serverPlayerLocal.x}, clientX=${localFuturePlayer.x}, lastProcessedTick=${serverPlayerLocal.lastProcessedTick}, simulationTick=${serverPlayerLocal.simulationTick}, estTick=${this.localInputs.getEstimatedServerTick()}, inputHistorySize=${Object.keys(this.localInputs.inputHistory).length}`);
-            this._reconLogCount++;
-        }
-
         // Preserve visual state
         const visualState = {
             color: localFuturePlayer.color,
@@ -265,6 +260,12 @@ class GameLoop {
             localFuturePlayer.facing = serverPlayerLocal.facing;
         }
 
+        // Sync character-specific stats from server
+        if (serverPlayerLocal.movementSpeed !== undefined) localFuturePlayer.movementSpeed = serverPlayerLocal.movementSpeed;
+        if (serverPlayerLocal.jumpVelocity !== undefined) localFuturePlayer.jumpVelocity = serverPlayerLocal.jumpVelocity;
+        if (serverPlayerLocal.characterWidth !== undefined) localFuturePlayer.characterWidth = serverPlayerLocal.characterWidth;
+        if (serverPlayerLocal.characterHeight !== undefined) localFuturePlayer.characterHeight = serverPlayerLocal.characterHeight;
+
         // 2. Tick-based reconciliation
         const lastProcessedTick = serverPlayerLocal.lastProcessedTick || 0;
         const currentEstimatedTick = this.localInputs.getEstimatedServerTick();
@@ -281,14 +282,20 @@ class GameLoop {
             };
 
             // Replay unprocessed inputs from inputHistory
+            const replayRange = currentEstimatedTick - lastProcessedTick;
+            let replayedCount = 0;
+            let replayedWithMovement = 0;
             for (let tick = lastProcessedTick + 1; tick <= currentEstimatedTick; tick++) {
                 const input = this.localInputs.inputHistory[tick];
                 if (input) {
+                    replayedCount++;
+                    if (input.ArrowLeft || input.ArrowRight || input.ArrowUp) replayedWithMovement++;
                     currentState = this.simulatePlayerMovementFrame(currentState, input);
                 }
             }
 
             // Also replay any unsent inputs still on deck
+            const onDeckCount = this.inputsOnDeck.length;
             for (let i = 0; i < this.inputsOnDeck.length; i++) {
                 currentState = this.simulatePlayerMovementFrame(currentState, this.inputsOnDeck[i]);
             }
@@ -301,46 +308,57 @@ class GameLoop {
             localFuturePlayer.verticalVelocity = currentState.verticalVelocity;
 
             // Compute smoothing correction
+            const prevAdjustment = this.localX_Adjustment;
             this.localX_Adjustment = futureClientPosition.x - localFuturePlayer.x;
             this.totalXBeenAdjusted = 0;
 
+            // Debug log
+            if (this._reconLogCount === undefined) this._reconLogCount = 0;
+            if (this._reconLogCount < 30) {
+                const delta = Math.round(futureClientPosition.x - serverPlayerLocal.x);
+                console.log(`[RECONCILE] predicted=${Math.round(futureClientPosition.x)}, serverX=${Math.round(serverPlayerLocal.x)}, afterReplay=${Math.round(localFuturePlayer.x)}, correction=${Math.round(this.localX_Adjustment)}, delta=${delta}, replay=${replayedCount}/${replayRange}ticks(${replayedWithMovement}mov), onDeck=${onDeckCount}, lastProc=${lastProcessedTick}, estTick=${currentEstimatedTick}`);
+                this._reconLogCount++;
+            }
+
             // Prune old inputs
             this.localInputs.pruneInputsBefore(lastProcessedTick);
+        } else {
+            if (this._reconLogCount === undefined) this._reconLogCount = 0;
+            if (this._reconLogCount < 30) {
+                console.log(`[RECONCILE-SKIP] serverX=${Math.round(serverPlayerLocal.x)}, clientX=${Math.round(futureClientPosition.x)}, lastProc=${lastProcessedTick}, estTick=${currentEstimatedTick}, noReplay`);
+                this._reconLogCount++;
+            }
         }
 
         // Restore visual state
         Object.assign(localFuturePlayer, visualState);
     }
 
-    // You'll need to implement this function to simulate one tick of player movement
+    // Simulate one tick of player movement — must match server logic exactly
     simulatePlayerMovementFrame(playerState, keysPressed) {
-        // This should exactly match the movement logic on the server
+        const localPlayer = this.allPlayers.get(this.localPlayerId);
+        const moveSpeed = localPlayer?.movementSpeed || this.MOVEMENT_SPEED;
+        const jumpVel = localPlayer?.jumpVelocity || this.JUMP_VELOCITY;
+        const gravity = this.GRAVITY;
+
         const newState = { ...playerState };
 
         // Handle jumping
         if (keysPressed.ArrowUp && !playerState.isJumping) {
-            newState.verticalVelocity = this.JUMP_VELOCITY; // Replace with your jump velocity
-            // newState.isJumping = true;
+            newState.verticalVelocity = jumpVel;
             newState.startJump = true;
         }
-        // if (!keysPressed.ArrowRight) {
-        //     console.log("Why not ArrowRight?", keysPressed);
-        // }
 
         // Handle horizontal movement
         if (!newState.isJumping) {
             if (keysPressed.ArrowLeft && !keysPressed.ArrowRight) {
-                newState.horizontalVelocity = -this.MOVEMENT_SPEED; // Replace with your movement speed
-                // newState.facing = "left";
+                newState.horizontalVelocity = -moveSpeed;
             } else if (keysPressed.ArrowRight && !keysPressed.ArrowLeft) {
-                newState.horizontalVelocity = this.MOVEMENT_SPEED; // Replace with your movement speed
-                // newState.facing = "right";
+                newState.horizontalVelocity = moveSpeed;
             } else if (!keysPressed.ArrowRight && !keysPressed.ArrowLeft) {
-                // Add some deceleration if desired
-                newState.horizontalVelocity = 0; // Friction factor
+                newState.horizontalVelocity = 0;
             } else if (keysPressed.ArrowRight && keysPressed.ArrowLeft) {
-                // Add some deceleration if desired
-                newState.horizontalVelocity = 0; // Friction factor
+                newState.horizontalVelocity = 0;
             }
             if (keysPressed.ArrowDown && !newState.isCrouching) {
                 newState.isCrouching = true;
@@ -358,14 +376,12 @@ class GameLoop {
             newState.height = 0;
             newState.verticalVelocity = 0;
             newState.isJumping = false;
-            // Apply gravity
         } else if (newState.isJumping) {
-            newState.verticalVelocity += this.GRAVITY; // Replace with your gravity value
+            newState.verticalVelocity += gravity;
         }
 
         // Update y position based on height
         newState.y = this.FLOOR_Y - this.PLAYER_HEIGHT / (newState.isCrouching ? 2 : 1) - newState.height;
-        // ;
         if (newState.startJump) {
             newState.startJump = false;
             newState.isJumping = true;
@@ -398,24 +414,27 @@ class GameLoop {
             frame: this.frame,
             serverTick: this.localInputs.getEstimatedServerTick(),
         });
+        // Use character-specific stats, falling back to static constants
+        const moveSpeed = player.movementSpeed || this.MOVEMENT_SPEED;
+        const jumpVel = player.jumpVelocity || this.JUMP_VELOCITY;
+
         // Apply horizontal movement with time scaling
         if (onGround) {
             const keysPressed = this.localInputs.keysPressed;
             // Direct ground control
             if (keysPressed.ArrowLeft && !keysPressed.ArrowRight) {
-                this.horizontalVelocity = -this.MOVEMENT_SPEED;
+                this.horizontalVelocity = -moveSpeed;
             } else if (keysPressed.ArrowRight && !keysPressed.ArrowLeft) {
-                this.horizontalVelocity = this.MOVEMENT_SPEED;
+                this.horizontalVelocity = moveSpeed;
             } else if (!keysPressed.ArrowRight && !keysPressed.ArrowLeft) {
                 this.horizontalVelocity = 0;
             }
             if (keysPressed.ArrowUp) {
                 // Apply jump if needed (only if on ground)
-                // player.isMoving = true;
                 this.isJumping = true;
                 player.isJumping = this.isJumping;
 
-                player.verticalVelocity = this.JUMP_VELOCITY;
+                player.verticalVelocity = jumpVel;
             }
 
             //crouch
@@ -434,6 +453,11 @@ class GameLoop {
         this.totalXBeenAdjusted += adj;
         if (Math.abs(this.totalXBeenAdjusted) < Math.abs(this.localX_Adjustment)) {
             player.x += adj;
+            if (this._smoothLogCount === undefined) this._smoothLogCount = 0;
+            if (this._smoothLogCount < 20 && adj !== 0) {
+                console.log(`[SMOOTH] adj=${adj}, totalAdj=${this.totalXBeenAdjusted}, target=${this.localX_Adjustment}, x=${Math.round(player.x)}, hVel=${this.horizontalVelocity}`);
+                this._smoothLogCount++;
+            }
         }
 
         // console.log({
@@ -489,6 +513,14 @@ class GameLoop {
             // });
             this.localInputs.sendBatch();
         }
+
+        // Reconcile with the latest server state AFTER sendBatch
+        // (ensures inputHistory is up to date and only one reconcile per frame)
+        if (this.pendingServerState) {
+            this.handleServerUpdateLocalPlayer(this.pendingServerState);
+            this.pendingServerState = null;
+        }
+
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
