@@ -168,7 +168,7 @@ export default function Lobby() {
         <div className="space-y-8">
             <div className="flex items-center justify-center">
                 <div className="text-center">
-                    <h1 className="text-4xl font-bold tracking-tight mb-4">Fighter Arena</h1>
+                    <h1 className="text-4xl font-bold tracking-tight mb-4">Fighter Arena!</h1>
                     <p className="text-xl text-muted-foreground mb-8">Create or join a match to start fighting!</p>
                 </div>
             </div>

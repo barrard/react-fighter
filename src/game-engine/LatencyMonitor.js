@@ -1,4 +1,5 @@
 // Client-side latency monitor
+const DEBUG_NET = import.meta.env.VITE_DEBUG_NET === "true";
 class LatencyMonitor {
     constructor(socket) {
         this.socket = socket;
@@ -17,6 +18,7 @@ class LatencyMonitor {
         this.startAnimationTick();
         this.setupListeners();
         this.startHeartbeat();
+        this.displayLatency(); // Ensure HUD exists even before first pong
     }
 
     startAnimationTick() {
@@ -65,6 +67,14 @@ class LatencyMonitor {
         this.maxLatency = Math.max(this.maxLatency, latency);
     }
 
+    applyServerLatency(latency) {
+        if (typeof latency !== "number" || Number.isNaN(latency)) return;
+        this.currentLatency = Math.round(latency);
+        this.minLatency = Math.min(this.minLatency, latency);
+        this.maxLatency = Math.max(this.maxLatency, latency);
+        this.displayLatency();
+    }
+
     displayLatency() {
         // Get or create latency display element
         let latencyDisplay = document.getElementById("latency-display");
@@ -92,7 +102,8 @@ class LatencyMonitor {
 		<div>Min: ${this.minLatency}ms</div>
 		<div>Max: ${this.maxLatency}ms</div>
 		<div>Tick: ${this.currentTick}</div>
-	  `;
+		<div>DEBUG_NET: ${DEBUG_NET ? "true" : "false"}</div>
+	`;
     }
 
     getLatency() {

@@ -25,6 +25,7 @@ export default function GameRoom() {
     const [gameTimer, setGameTimer] = useState(99); // Add a state for the game timer
     const [matchStartData, setMatchStartData] = useState(null);
     const allPlayers = useRef(new Map()); // Store all players in the room
+    const readyEmittedRef = useRef(false);
     // THIS HOOK IS PRESERVED FROM YOUR ORIGINAL CODE
     useEffect(() => {
         let errMsg = error?.message || error;
@@ -107,6 +108,12 @@ export default function GameRoom() {
 
         const handleMatchStart = (data) => {
             console.log("GameRoom: Received matchStart", data);
+            console.log("GameRoom: matchStart timing", {
+                serverTick: data?.serverTick,
+                matchStartTick: data?.matchStartTick,
+                tickRate: data?.tickRate,
+                receivedAt: performance.now(),
+            });
             setMatchStartData({ ...data, receivedAt: performance.now() });
         };
 
@@ -142,6 +149,13 @@ export default function GameRoom() {
         navigate("/");
     }
 
+    const handleCanvasReady = () => {
+        if (!socket || readyEmittedRef.current) return;
+        readyEmittedRef.current = true;
+        console.log("GameRoom: clientReady emitted");
+        socket.emit("clientReady");
+    };
+
     return (
         <div className="space-y-6 container mx-auto p-4">
             <header className="flex items-center justify-between">
@@ -174,6 +188,7 @@ export default function GameRoom() {
                         player1={player1}
                         player2={player2}
                         matchStartData={matchStartData}
+                        onCanvasReady={handleCanvasReady}
                     />
                 )}
             </main>

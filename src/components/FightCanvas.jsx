@@ -13,16 +13,19 @@ import Canvas from "../game-engine/Canvas";
 import InputBatchHandler from "../game-engine/InputBatchHandler";
 import LatencyMonitor from "../game-engine/LatencyMonitor";
 
-export default function FightCanvas({ player1, player2, localPlayerId, allPlayers, matchStartData }) {
+export default function FightCanvas({ player1, player2, localPlayerId, allPlayers, matchStartData, onCanvasReady }) {
     const { socket } = useSocket();
     const canvasRef = useRef(null);
     const gameLoopRef = useRef(null);
+    const inputBatcherRef = useRef(null);
+    const readySentRef = useRef(false);
 
     useEffect(() => {
         if (socket && canvasRef.current) {
             const latencyMonitor = new LatencyMonitor(socket);
             const inputBatcher = new InputBatchHandler(socket);
             inputBatcher.init(latencyMonitor);
+            inputBatcherRef.current = inputBatcher;
 
             if (matchStartData) {
                 inputBatcher.applyMatchStart(matchStartData);
@@ -46,9 +49,46 @@ export default function FightCanvas({ player1, player2, localPlayerId, allPlayer
                 if (gameLoopRef.current) {
                     gameLoopRef.current.stop(); // Call the new stop method
                 }
+                if (inputBatcherRef.current) {
+                    inputBatcherRef.current.destroy();
+                    inputBatcherRef.current = null;
+                }
             };
         }
     }, [socket]); // This effect runs once when the component is ready
+
+    useEffect(() => {
+        if (matchStartData && inputBatcherRef.current) {
+            inputBatcherRef.current.applyMatchStart(matchStartData);
+            if (gameLoopRef.current && !gameLoopRef.current.isRunning) {
+                gameLoopRef.current.start();
+            }
+        }
+    }, [matchStartData]);
+
+    useEffect(() => {
+        if (!canvasRef.current || readySentRef.current) return;
+        let attempts = 0;
+        const MAX_ATTEMPTS = 5;
+        const checkReady = () => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            const ready = canvas.width > 0 && canvas.height > 0 && rect.width > 0 && rect.height > 0;
+            if (ready) {
+                readySentRef.current = true;
+                if (typeof onCanvasReady === "function") {
+                    onCanvasReady();
+                }
+                return;
+            }
+            attempts += 1;
+            if (attempts < MAX_ATTEMPTS) {
+                requestAnimationFrame(checkReady);
+            }
+        };
+        requestAnimationFrame(checkReady);
+    }, [onCanvasReady]);
 
     // The JSX for rendering the UI remains exactly the same
     return (

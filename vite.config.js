@@ -18,6 +18,14 @@ export default defineConfig(({ mode }) => {
             },
         },
         server: {
+            port: 1549,
+            host: true,
+            allowedHosts: ["fight.raveaboutdave.com"],
+            hmr: {
+                host: "fight.raveaboutdave.com",
+                port: 1549,
+                protocol: "wss",
+            },
             fs: {
                 allow: [projectRoot, sharedDir],
             },

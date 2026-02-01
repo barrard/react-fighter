@@ -4,6 +4,12 @@ import { encodeInputMask } from "@shared/inputFlags.js";
 export default class InputBatchHandler {
     constructor(socket) {
         this.socket = socket;
+        this.debugNet = import.meta.env.VITE_DEBUG_NET === "true";
+        this.lastDebugAt = 0;
+        this.debugFramesLogged = 0;
+        this.matchStartLogged = false;
+        this.latencyProbeHandler = null;
+        this.latencyAckHandler = null;
         this.sequenceNumber = 0;
         this.isSending = false;
         this.lastSentTime = 0;
@@ -34,6 +40,7 @@ export default class InputBatchHandler {
         this.latencyMonitor = latencyMonitor;
         // Bind event listeners
         this.setupEventListeners();
+        this.setupLatencyCalibration();
     }
 
     applyMatchStart(data) {
@@ -48,8 +55,16 @@ export default class InputBatchHandler {
             : 0;
         this.estimatedOneWayDelay = (rawLatency && !isNaN(rawLatency)) ? rawLatency / 2 : 0;
         this.isMatchStarted = true;
-        // Uncomment for match start debugging:
-        // console.log("InputBatchHandler: matchStart applied", { localMatchStartTime: this.localMatchStartTime, serverTickAtStart: this.serverTickAtStart, tickRate: this.tickRate, estimatedOneWayDelay: this.estimatedOneWayDelay, estimatedTickNow: this.getEstimatedServerTick() });
+        if (this.debugNet && !this.matchStartLogged) {
+            this.matchStartLogged = true;
+            console.log("InputBatchHandler: matchStart applied", {
+                serverTickAtStart: this.serverTickAtStart,
+                matchStartTick: this.matchStartTick,
+                tickRate: this.tickRate,
+                estimatedOneWayDelay: this.estimatedOneWayDelay,
+                estimatedTickNow: this.getEstimatedServerTick(),
+            });
+        }
     }
 
     getEstimatedServerTick() {
@@ -89,6 +104,31 @@ export default class InputBatchHandler {
         });
     }
 
+    setupLatencyCalibration() {
+        this.latencyProbeHandler = (data = {}) => {
+            const seq = data.seq;
+            const serverSentAt = data.serverSentAt;
+            if (!seq || !serverSentAt) return;
+            if (this.debugNet) {
+                console.log("InputBatchHandler: latencyProbe received", { seq, serverSentAt });
+            }
+            this.socket.emit("latencyPong", { seq, serverSentAt });
+        };
+
+        this.latencyAckHandler = (data = {}) => {
+            const latencyMs = Number(data.latencyMs);
+            if (this.latencyMonitor && !isNaN(latencyMs)) {
+                this.latencyMonitor.applyServerLatency(latencyMs);
+                if (this.debugNet) {
+                    console.log("InputBatchHandler: latencyAck received", { seq: data.seq, latencyMs });
+                }
+            }
+        };
+
+        this.socket.on("latencyProbe", this.latencyProbeHandler);
+        this.socket.on("latencyAck", this.latencyAckHandler);
+    }
+
     handleKeysPressed(keyCode) {
         if (keyCode === "ArrowLeft") {
             this.keysPressed.ArrowLeft = true;
@@ -119,6 +159,7 @@ export default class InputBatchHandler {
     }
 
     sendBatch() {
+        if (!this.isMatchStarted) return;
         // Tag each frame in inputsOnDeck with its estimated server tick
         const frames = [...this.gameLoop.inputsOnDeck];
         if (frames.length === 0) return;
@@ -138,9 +179,27 @@ export default class InputBatchHandler {
             })),
         };
 
-        // Uncomment for send debugging:
-        // const ticks = frames.map(f => f.serverTick);
-        // console.log(`[CLIENT SEND] batch: ${frames.length} frames, ticks=[${ticks}], estTick=${this.getEstimatedServerTick()}`);
+        if (this.debugNet) {
+            const ticks = frames.map((f) => f.serverTick).filter((t) => t != null);
+            if (this.debugFramesLogged < 10) {
+                const remaining = 10 - this.debugFramesLogged;
+                const sample = frames.slice(0, remaining);
+                const sampleTicks = sample.map((f) => f.serverTick).filter((t) => t != null);
+                console.log(
+                    `[CLIENT SEND FIRST] frames=${sample.length} ticks=[${sampleTicks.join(",")}] estTick=${this.getEstimatedServerTick()}`
+                );
+                this.debugFramesLogged += sample.length;
+            }
+            const now = performance.now();
+            if (now - this.lastDebugAt > 1000) {
+                this.lastDebugAt = now;
+                const minTick = ticks.length ? Math.min(...ticks) : null;
+                const maxTick = ticks.length ? Math.max(...ticks) : null;
+                console.log(
+                    `[CLIENT SEND] batch=${frames.length} tickRange=${minTick}-${maxTick} estTick=${this.getEstimatedServerTick()}`
+                );
+            }
+        }
 
         this.gameLoop.inputsOnDeck = [];
         this.socket.emit("ib", data);
@@ -159,5 +218,11 @@ export default class InputBatchHandler {
         clearInterval(this.batchTimer);
         window.removeEventListener("keydown", this.handleKeyDown);
         window.removeEventListener("keyup", this.handleKeyUp);
+        if (this.latencyProbeHandler) {
+            this.socket.off("latencyProbe", this.latencyProbeHandler);
+        }
+        if (this.latencyAckHandler) {
+            this.socket.off("latencyAck", this.latencyAckHandler);
+        }
     }
 }

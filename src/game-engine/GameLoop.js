@@ -11,6 +11,8 @@ class GameLoop {
         this.myCanvas = myCanvas;
         this.canvas = myCanvas.canvas;
         this.ctx = this.canvas.getContext("2d");
+        this.debugNet = import.meta.env.VITE_DEBUG_NET === "true";
+        this.lastNetDebugAt = 0;
 
         this.allPlayers = allPlayers;
         this.localPlayerId = localPlayerId;
@@ -106,10 +108,7 @@ class GameLoop {
         // });
         // console.log("this.Players initialized:", this.allPlayers.size);
         // this.gameLoop.bind(this)();
-        // Start the game loop ONLY if it's not already running
-        if (!this.isRunning) {
-            this.start();
-        }
+        // Defer starting the loop until matchStart is applied
 
         // Handle new player joining
         // this.socket.on("playerJoined", (serverPlayer) => {
@@ -196,6 +195,24 @@ class GameLoop {
                     }
                 }
             });
+            if (this.debugNet) {
+                const now = performance.now();
+                if (now - this.lastNetDebugAt > 1000) {
+                    this.lastNetDebugAt = now;
+                    const localPlayer = data.players.find((p) => p.id === this.localPlayerId);
+                    const estTick = this.localInputs.getEstimatedServerTick();
+                    if (localPlayer) {
+                        const lastProcessedTick = localPlayer.lastProcessedTick ?? 0;
+                        console.log(
+                            `[CLIENT GS] simTick=${data.simulationTick} lastProc=${lastProcessedTick} estTick=${estTick} delta=${estTick - lastProcessedTick}`
+                        );
+                    } else {
+                        console.log(
+                            `[CLIENT GS] simTick=${data.simulationTick} estTick=${estTick} players=${data.players.length}`
+                        );
+                    }
+                }
+            }
         });
 
         // Update your sendInputState function to include timestamp
@@ -375,6 +392,7 @@ class GameLoop {
     // Updated updateLocalPlayerGameLoop with smoother local prediction
     updateLocalPlayerGameLoop() {
         if (!this.localPlayerId) return;
+        if (!this.localInputs.isMatchStarted) return;
         let player = this.allPlayers.get(this.localPlayerId);
         if (!player) return;
 
