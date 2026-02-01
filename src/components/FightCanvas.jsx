@@ -11,9 +11,21 @@ import { Swords } from "lucide-react";
 import GameLoop from "../game-engine/GameLoop";
 import Canvas from "../game-engine/Canvas";
 import InputBatchHandler from "../game-engine/InputBatchHandler";
-import LatencyMonitor from "../game-engine/LatencyMonitor";
+import { getLatencyMonitor } from "../game-engine/latencySingleton";
 
-export default function FightCanvas({ player1, player2, localPlayerId, allPlayers, matchStartData, onCanvasReady }) {
+export default function FightCanvas({
+    player1,
+    player2,
+    localPlayerId,
+    allPlayers,
+    matchStartData,
+    onCanvasReady,
+    timerSeconds = 99,
+    roundNumber = 0,
+    roundScores,
+    roundOutcome = null,
+    roundWinnerId = null,
+}) {
     const { socket } = useSocket();
     const canvasRef = useRef(null);
     const gameLoopRef = useRef(null);
@@ -22,7 +34,7 @@ export default function FightCanvas({ player1, player2, localPlayerId, allPlayer
 
     useEffect(() => {
         if (socket && canvasRef.current) {
-            const latencyMonitor = new LatencyMonitor(socket);
+            const latencyMonitor = getLatencyMonitor(socket);
             const inputBatcher = new InputBatchHandler(socket);
             inputBatcher.init(latencyMonitor);
             inputBatcherRef.current = inputBatcher;
@@ -67,6 +79,15 @@ export default function FightCanvas({ player1, player2, localPlayerId, allPlayer
     }, [matchStartData]);
 
     useEffect(() => {
+        if (inputBatcherRef.current && gameLoopRef.current && matchStartData == null) {
+            inputBatcherRef.current.resetForRound();
+            if (gameLoopRef.current.isRunning) {
+                gameLoopRef.current.stop();
+            }
+        }
+    }, [matchStartData]);
+
+    useEffect(() => {
         if (!canvasRef.current || readySentRef.current) return;
         let attempts = 0;
         const MAX_ATTEMPTS = 5;
@@ -104,7 +125,7 @@ export default function FightCanvas({ player1, player2, localPlayerId, allPlayer
                 </div>
                 <div className="flex flex-col items-center">
                     <Swords />
-                    <div className="text-5xl font-mono bg-slate-800 px-4 py-1 rounded">99</div>
+                    <div className="text-5xl font-mono bg-slate-800 px-4 py-1 rounded">{timerSeconds}</div>
                 </div>
                 <div className="w-full space-y-2">
                     <div className="flex justify-between font-bold text-lg">
@@ -114,6 +135,21 @@ export default function FightCanvas({ player1, player2, localPlayerId, allPlayer
                     <Progress value={100} className="h-6 [&>div]:bg-red-500" />
                 </div>
             </div>
+            {roundNumber > 0 && roundScores && (
+                <div className="flex justify-between text-sm text-slate-300">
+                    <span>Round {roundNumber}</span>
+                    <span>
+                        P1 {roundScores.player1Wins} - {roundScores.player2Wins} P2
+                    </span>
+                </div>
+            )}
+            {roundOutcome && (
+                <div className="text-center text-sm text-slate-200">
+                    {roundOutcome === "draw"
+                        ? "Round ended in a draw"
+                        : `Round winner: ${roundWinnerId === localPlayerId ? "You" : "Opponent"}`}
+                </div>
+            )}
             {/* The Game Canvas */}
             <div className="relative w-full aspect-video bg-gray-900 rounded-md overflow-hidden">
                 <canvas

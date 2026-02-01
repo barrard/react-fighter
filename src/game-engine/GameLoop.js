@@ -124,7 +124,7 @@ class GameLoop {
         //     this.allPlayers.set(serverPlayer.id, serverPlayer);
         // });
 
-        this.socket.on("playerKicked", (id) => {
+        this.onPlayerKicked = (id) => {
             const player = this.allPlayers.get(id);
             if (player) {
                 player.isKicking = true;
@@ -135,16 +135,18 @@ class GameLoop {
                     player.isKicking = false;
                 }, KICK_DURATION);
             }
-        });
+        };
+        this.socket.on("playerKicked", this.onPlayerKicked);
 
         // Handle player leaving
-        this.socket.on("playerLeft", (id) => {
+        this.onPlayerLeft = (id) => {
             // console.log("Player left:", id);
             this.allPlayers.delete(id);
-        });
+        };
+        this.socket.on("playerLeft", this.onPlayerLeft);
 
         // Modify the gameState handler for other players
-        this.socket.on("gs", (rawData) => {
+        this.onGameState = (rawData) => {
             const data = decodeGameStatePayload(rawData);
             // const serverTime = Date.now();
             data.players.forEach((serverPlayer) => {
@@ -213,7 +215,8 @@ class GameLoop {
                     }
                 }
             }
-        });
+        };
+        this.socket.on("gs", this.onGameState);
 
         // Update your sendInputState function to include timestamp
 
@@ -227,10 +230,11 @@ class GameLoop {
         // });
 
         // Handle disconnection
-        this.socket.on("disconnect", () => {
+        this.onDisconnect = () => {
             console.log("Disconnected from server");
             this.myCanvas.status.textContent = "Disconnected from server. Trying to reconnect...";
-        });
+        };
+        this.socket.on("disconnect", this.onDisconnect);
     }
     // NEW: Add a start() method
     start() {
@@ -248,6 +252,10 @@ class GameLoop {
         if (this.animationFrameId) {
             cancelAnimationFrame(this.animationFrameId);
         }
+        if (this.onPlayerKicked) this.socket.off("playerKicked", this.onPlayerKicked);
+        if (this.onPlayerLeft) this.socket.off("playerLeft", this.onPlayerLeft);
+        if (this.onGameState) this.socket.off("gs", this.onGameState);
+        if (this.onDisconnect) this.socket.off("disconnect", this.onDisconnect);
     }
 
     handleServerUpdateLocalPlayer(serverPlayerLocal) {
@@ -314,7 +322,7 @@ class GameLoop {
             }
 
             // Apply reconciled state
-            localFuturePlayer.x = currentState.x;
+            localFuturePlayer.x = this.clampX(currentState.x, localFuturePlayer);
             localFuturePlayer.y = currentState.y;
             localFuturePlayer.height = currentState.height;
             localFuturePlayer.horizontalVelocity = currentState.horizontalVelocity;
@@ -370,6 +378,7 @@ class GameLoop {
 
         // Update position with time-scaled movement
         newState.x += newState.horizontalVelocity;
+        newState.x = this.clampX(newState.x, newState);
         newState.height -= newState.verticalVelocity;
 
         // Handle landing
@@ -388,6 +397,13 @@ class GameLoop {
             newState.isJumping = true;
         }
         return newState;
+    }
+
+    clampX(x, playerState) {
+        const width = playerState?.characterWidth || this.PLAYER_WIDTH;
+        const canvasWidth = this.canvas?.width || CONSTS.CANVAS_WIDTH;
+        const maxX = Math.max(0, canvasWidth - width);
+        return Math.max(0, Math.min(maxX, x));
     }
     // Updated updateLocalPlayerGameLoop with smoother local prediction
     updateLocalPlayerGameLoop() {
@@ -449,8 +465,8 @@ class GameLoop {
 
         // Apply horizontal velocity with smoothing
         player.x += this.horizontalVelocity;
-        // Constrain player within boundaries //NEEDS TODO BETTER
-        player.x = Math.max(0, Math.min(this.canvas.width - (player.characterWidth || this.PLAYER_WIDTH), player.x));
+        // Constrain player within boundaries
+        player.x = this.clampX(player.x, player);
         const adj = this.localX_Adjustment != 0 ? Math.floor(this.localX_Adjustment / 3) : this.localX_Adjustment;
         this.totalXBeenAdjusted += adj;
         if (Math.abs(this.totalXBeenAdjusted) < Math.abs(this.localX_Adjustment)) {

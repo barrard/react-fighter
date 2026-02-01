@@ -14,6 +14,9 @@ class LatencyMonitor {
         this.currentTick = 0;
         this.minTickTime = 25;
         this.currentTime = new Date().getTime();
+        this.pingIntervalId = null;
+        this.tickIntervalId = null;
+        this.pongHandler = null;
 
         this.startAnimationTick();
         this.setupListeners();
@@ -22,14 +25,14 @@ class LatencyMonitor {
     }
 
     startAnimationTick() {
-        setInterval(() => {
+        this.tickIntervalId = setInterval(() => {
             this.currentTick++;
         }, this.minTickTime);
     }
 
     setupListeners() {
         // Listen for pong responses from server
-        this.socket.on("pong", (data = {}) => {
+        this.pongHandler = (data = {}) => {
             const now = Date.now();
             const clientTimestamp = data.ct ?? data.clientTimestamp;
             if (!clientTimestamp) return;
@@ -37,11 +40,12 @@ class LatencyMonitor {
 
             this.updateLatencyStats(latency);
             this.displayLatency();
-        });
+        };
+        this.socket.on("pong", this.pongHandler);
     }
 
     startHeartbeat() {
-        setInterval(() => {
+        this.pingIntervalId = setInterval(() => {
             this.sendPing();
         }, this.pingInterval);
     }
@@ -108,6 +112,16 @@ class LatencyMonitor {
 
     getLatency() {
         return this.currentLatency;
+    }
+
+    destroy() {
+        if (this.pingIntervalId) clearInterval(this.pingIntervalId);
+        if (this.tickIntervalId) clearInterval(this.tickIntervalId);
+        if (this.pongHandler) this.socket.off("pong", this.pongHandler);
+        const latencyDisplay = document.getElementById("latency-display");
+        if (latencyDisplay && latencyDisplay.parentNode) {
+            latencyDisplay.parentNode.removeChild(latencyDisplay);
+        }
     }
 }
 

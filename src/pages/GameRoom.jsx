@@ -22,12 +22,20 @@ export default function GameRoom() {
     const [player1, setPlayer1] = useState(null);
     const [player2, setPlayer2] = useState(null);
     const [roomVerified, setRoomVerified] = useState(false); // This will hold the user's role: 'player1', 'player2', or 'spectator'
-    const [gameTimer, setGameTimer] = useState(99); // Add a state for the game timer
+    const [gameTimer, setGameTimer] = useState(99);
+    const [roundNumber, setRoundNumber] = useState(0);
+    const [roundScores, setRoundScores] = useState({ player1Wins: 0, player2Wins: 0 });
+    const [matchWinnerId, setMatchWinnerId] = useState(null);
+    const [roundOutcome, setRoundOutcome] = useState(null);
+    const [roundWinnerId, setRoundWinnerId] = useState(null);
+    const readyRetryTimerRef = useRef(null);
+    const roomStateRef = useRef(roomState);
     const [matchStartData, setMatchStartData] = useState(null);
     const allPlayers = useRef(new Map()); // Store all players in the room
     const readyEmittedRef = useRef(false);
     // THIS HOOK IS PRESERVED FROM YOUR ORIGINAL CODE
     useEffect(() => {
+        roomStateRef.current = roomState;
         let errMsg = error?.message || error;
         if (errMsg) {
             if (errMsg === "You are not in this room" || errMsg === "Game ended: Opponent left.") {
@@ -115,11 +123,69 @@ export default function GameRoom() {
                 receivedAt: performance.now(),
             });
             setMatchStartData({ ...data, receivedAt: performance.now() });
+            if (readyRetryTimerRef.current) {
+                clearInterval(readyRetryTimerRef.current);
+                readyRetryTimerRef.current = null;
+            }
+        };
+
+        const handleRoundStart = (data = {}) => {
+            setRoundNumber(data.round ?? 0);
+            if (typeof data.durationSeconds === "number") {
+                setGameTimer(data.durationSeconds);
+            }
+            if (data.scores) {
+                setRoundScores(data.scores);
+            }
+            setRoundOutcome(null);
+            setRoundWinnerId(null);
+        };
+
+        const handleRoundTimer = (data = {}) => {
+            if (typeof data.remainingSeconds === "number") {
+                setGameTimer(data.remainingSeconds);
+            }
+        };
+
+        const handleRoundEnd = (data = {}) => {
+            console.log("GameRoom: roundEnd received", data);
+            if (data.scores) {
+                setRoundScores(data.scores);
+            }
+            setRoundOutcome(data.outcome ?? null);
+            setRoundWinnerId(data.winnerId ?? null);
+            setMatchStartData(null);
+            // Re-run ready/calibration for next round
+            readyEmittedRef.current = false;
+            if (readyRetryTimerRef.current) {
+                clearInterval(readyRetryTimerRef.current);
+            }
+            if (socket && roomStateRef.current !== "finished") {
+                console.log("GameRoom: clientReady emitted (round reset)");
+                socket.emit("clientReady");
+                readyRetryTimerRef.current = setInterval(() => {
+                    if (!socket || roomStateRef.current === "finished") return;
+                    console.log("GameRoom: clientReady retry");
+                    socket.emit("clientReady");
+                }, 1000);
+            }
+        };
+
+        const handleMatchEnd = (data = {}) => {
+            setMatchWinnerId(data.winnerId ?? null);
+            if (data.scores) {
+                setRoundScores(data.scores);
+            }
+            setRoomState("finished");
         };
 
         socket.on("playerJoined", addServerPlayer);
         socket.on("initServerPlayers", initServerPlayers);
         socket.on("matchStart", handleMatchStart);
+        socket.on("roundStart", handleRoundStart);
+        socket.on("roundTimer", handleRoundTimer);
+        socket.on("roundEnd", handleRoundEnd);
+        socket.on("matchEnd", handleMatchEnd);
 
         socket.on("roomVerified", handleRoomVerified);
         socket.on("characterSelected", handleCharacterSelected);
@@ -130,6 +196,14 @@ export default function GameRoom() {
             socket.off("playerJoined", addServerPlayer);
             socket.off("initServerPlayers", initServerPlayers);
             socket.off("matchStart", handleMatchStart);
+            socket.off("roundStart", handleRoundStart);
+            socket.off("roundTimer", handleRoundTimer);
+            socket.off("roundEnd", handleRoundEnd);
+            socket.off("matchEnd", handleMatchEnd);
+            if (readyRetryTimerRef.current) {
+                clearInterval(readyRetryTimerRef.current);
+                readyRetryTimerRef.current = null;
+            }
         };
     }, [roomId, socket]); // Dependencies for setup
 
@@ -189,6 +263,11 @@ export default function GameRoom() {
                         player2={player2}
                         matchStartData={matchStartData}
                         onCanvasReady={handleCanvasReady}
+                        timerSeconds={gameTimer}
+                        roundNumber={roundNumber}
+                        roundScores={roundScores}
+                        roundOutcome={roundOutcome}
+                        roundWinnerId={roundWinnerId}
                     />
                 )}
             </main>

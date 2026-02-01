@@ -85,6 +85,12 @@ export default class InputBatchHandler {
         };
     }
 
+    resetForRound() {
+        this.isMatchStarted = false;
+        this.inputHistory = {};
+        this.setDefaultInputState();
+    }
+
     setupEventListeners() {
         // Handle keydown events
         window.addEventListener("keydown", (e) => {
