@@ -28,6 +28,7 @@ export default function GameRoom() {
     const [matchWinnerId, setMatchWinnerId] = useState(null);
     const [roundOutcome, setRoundOutcome] = useState(null);
     const [roundWinnerId, setRoundWinnerId] = useState(null);
+    const [rematchRequested, setRematchRequested] = useState(false);
     const readyRetryTimerRef = useRef(null);
     const roomStateRef = useRef(roomState);
     const [startCountdown, setStartCountdown] = useState(null); // 3..1, then "FIGHT"
@@ -36,6 +37,8 @@ export default function GameRoom() {
     const readyEmittedRef = useRef(false);
     const countdownTimerRef = useRef(null);
     const countdownHoldRef = useRef(null);
+    const roundEndCleanupRef = useRef(null);
+    const [roundPrepared, setRoundPrepared] = useState(false);
     // THIS HOOK IS PRESERVED FROM YOUR ORIGINAL CODE
     useEffect(() => {
         roomStateRef.current = roomState;
@@ -108,6 +111,7 @@ export default function GameRoom() {
                 serverPlayer.targetHeight = serverPlayer.height || 0;
                 allPlayers.current.set(serverPlayer.id, serverPlayer);
             });
+            setRoundPrepared(true);
         };
 
         const addServerPlayer = (serverPlayer) => {
@@ -147,6 +151,7 @@ export default function GameRoom() {
             }
             setRoundOutcome(null);
             setRoundWinnerId(null);
+            setRoundPrepared(false);
         };
 
         const handleRoundTimer = (data = {}) => {
@@ -162,8 +167,27 @@ export default function GameRoom() {
             }
             setRoundOutcome(data.outcome ?? null);
             setRoundWinnerId(data.winnerId ?? null);
-            setMatchStartData(null);
+            if (Array.isArray(data.players)) {
+                data.players.forEach((p) => {
+                    const existing = allPlayers.current.get(p.id);
+                    if (!existing) return;
+                    existing.health = p.health ?? existing.health;
+                });
+            }
+            if (roundEndCleanupRef.current) {
+                clearTimeout(roundEndCleanupRef.current);
+            }
+            roundEndCleanupRef.current = setTimeout(() => {
+                setMatchStartData(null);
+            }, 120);
             // Re-run ready/calibration for next round
+            if (data.matchOver) {
+                if (readyRetryTimerRef.current) {
+                    clearInterval(readyRetryTimerRef.current);
+                    readyRetryTimerRef.current = null;
+                }
+                return;
+            }
             readyEmittedRef.current = false;
             if (readyRetryTimerRef.current) {
                 clearInterval(readyRetryTimerRef.current);
@@ -185,6 +209,25 @@ export default function GameRoom() {
                 setRoundScores(data.scores);
             }
             setRoomState("finished");
+            setRematchRequested(false);
+            if (readyRetryTimerRef.current) {
+                clearInterval(readyRetryTimerRef.current);
+                readyRetryTimerRef.current = null;
+            }
+        };
+
+        const handleRematchAccepted = () => {
+            setMatchWinnerId(null);
+            setRoundOutcome(null);
+            setRoundWinnerId(null);
+            setRoundScores({ player1Wins: 0, player2Wins: 0 });
+            setRoundNumber(0);
+            setRematchRequested(false);
+            setRoomState("fighting");
+        };
+
+        const handleMatchQuit = () => {
+            navigate("/");
         };
 
         const handleStartCountdown = (payload = {}) => {
@@ -194,6 +237,10 @@ export default function GameRoom() {
 
             if (roomStateRef.current !== "fighting") {
                 setRoomState("fighting");
+            }
+            if (readyRetryTimerRef.current) {
+                clearInterval(readyRetryTimerRef.current);
+                readyRetryTimerRef.current = null;
             }
             setStartCountdown(seconds);
 
@@ -231,6 +278,8 @@ export default function GameRoom() {
         socket.on("roundEnd", handleRoundEnd);
         socket.on("matchEnd", handleMatchEnd);
         socket.on("startCountdown", handleStartCountdown);
+        socket.on("rematchAccepted", handleRematchAccepted);
+        socket.on("matchQuit", handleMatchQuit);
 
         socket.on("roomVerified", handleRoomVerified);
         socket.on("characterSelected", handleCharacterSelected);
@@ -252,9 +301,15 @@ export default function GameRoom() {
             socket.off("roundEnd", handleRoundEnd);
             socket.off("matchEnd", handleMatchEnd);
             socket.off("startCountdown", handleStartCountdown);
+            socket.off("rematchAccepted", handleRematchAccepted);
+            socket.off("matchQuit", handleMatchQuit);
             if (readyRetryTimerRef.current) {
                 clearInterval(readyRetryTimerRef.current);
                 readyRetryTimerRef.current = null;
+            }
+            if (roundEndCleanupRef.current) {
+                clearTimeout(roundEndCleanupRef.current);
+                roundEndCleanupRef.current = null;
             }
             if (countdownTimerRef.current) {
                 clearInterval(countdownTimerRef.current);
@@ -277,6 +332,17 @@ export default function GameRoom() {
         socket.emit("leaveRoom", roomId);
         navigate("/");
     }
+
+    const handleRematchClick = () => {
+        if (!socket) return;
+        setRematchRequested(true);
+        socket.emit("matchRematch");
+    };
+
+    const handleQuitClick = () => {
+        if (!socket) return;
+        socket.emit("matchQuit");
+    };
 
     const handleCanvasReady = () => {
         if (!socket || readyEmittedRef.current) return;
@@ -317,7 +383,7 @@ export default function GameRoom() {
                 )}
 
                 {/* STATE 3: THE FIGHT! */}
-                {roomState === "fighting" && (
+                {(roomState === "fighting" || roomState === "finished") && (
                     <FightCanvas
                         allPlayers={allPlayers.current}
                         localPlayerId={socket.id}
@@ -330,6 +396,12 @@ export default function GameRoom() {
                         roundScores={roundScores}
                         roundOutcome={roundOutcome}
                         roundWinnerId={roundWinnerId}
+                        showReadyBanner={roundPrepared && !matchStartData}
+                        showMatchEnd={roomState === "finished"}
+                        matchWinnerId={matchWinnerId}
+                        onRematch={handleRematchClick}
+                        onQuit={handleQuitClick}
+                        rematchPending={rematchRequested}
                     />
                 )}
             </main>

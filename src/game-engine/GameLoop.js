@@ -190,6 +190,10 @@ class GameLoop {
                         otherPlayer.targetHeight = serverPlayer.height || 0;
                         otherPlayer.isJumping = serverPlayer.isJumping || false;
                         otherPlayer.y = this.FLOOR_Y - this.PLAYER_HEIGHT - (serverPlayer.height || 0);
+                        otherPlayer.health = serverPlayer.health;
+                        if (serverPlayer.maxHealth !== undefined) {
+                            otherPlayer.maxHealth = serverPlayer.maxHealth;
+                        }
 
                         // Preserve visual state
                         const visualState = {
@@ -261,6 +265,10 @@ class GameLoop {
         if (this.animationFrameId) {
             cancelAnimationFrame(this.animationFrameId);
         }
+    }
+
+    destroy() {
+        this.stop();
         if (this.onPlayerKicked) this.socket.off("playerKicked", this.onPlayerKicked);
         if (this.onPlayerLeft) this.socket.off("playerLeft", this.onPlayerLeft);
         if (this.onGameState) this.socket.off("gs", this.onGameState);
@@ -301,6 +309,8 @@ class GameLoop {
         if (serverPlayerLocal.jumpVelocity !== undefined) localFuturePlayer.jumpVelocity = serverPlayerLocal.jumpVelocity;
         if (serverPlayerLocal.characterWidth !== undefined) localFuturePlayer.characterWidth = serverPlayerLocal.characterWidth;
         if (serverPlayerLocal.characterHeight !== undefined) localFuturePlayer.characterHeight = serverPlayerLocal.characterHeight;
+        if (serverPlayerLocal.health !== undefined) localFuturePlayer.health = serverPlayerLocal.health;
+        if (serverPlayerLocal.maxHealth !== undefined) localFuturePlayer.maxHealth = serverPlayerLocal.maxHealth;
 
         // 2. Tick-based reconciliation
         const lastProcessedTick = serverPlayerLocal.lastProcessedTick || 0;

@@ -11,23 +11,14 @@ class LatencyMonitor {
         this.maxLatency = 0;
 
         //Tick data
-        this.currentTick = 0;
         this.minTickTime = 25;
         this.currentTime = new Date().getTime();
         this.pingIntervalId = null;
-        this.tickIntervalId = null;
         this.pongHandler = null;
 
-        this.startAnimationTick();
         this.setupListeners();
         this.startHeartbeat();
         this.displayLatency(); // Ensure HUD exists even before first pong
-    }
-
-    startAnimationTick() {
-        this.tickIntervalId = setInterval(() => {
-            this.currentTick++;
-        }, this.minTickTime);
     }
 
     setupListeners() {
@@ -105,7 +96,6 @@ class LatencyMonitor {
 		<div>Ping: <span style="color:${color}">${this.currentLatency}ms</span></div>
 		<div>Min: ${this.minLatency}ms</div>
 		<div>Max: ${this.maxLatency}ms</div>
-		<div>Tick: ${this.currentTick}</div>
 		<div>DEBUG_NET: ${DEBUG_NET ? "true" : "false"}</div>
 	`;
     }
@@ -116,7 +106,6 @@ class LatencyMonitor {
 
     destroy() {
         if (this.pingIntervalId) clearInterval(this.pingIntervalId);
-        if (this.tickIntervalId) clearInterval(this.tickIntervalId);
         if (this.pongHandler) this.socket.off("pong", this.pongHandler);
         const latencyDisplay = document.getElementById("latency-display");
         if (latencyDisplay && latencyDisplay.parentNode) {

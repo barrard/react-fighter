@@ -25,6 +25,12 @@ export default function FightCanvas({
     roundScores,
     roundOutcome = null,
     roundWinnerId = null,
+    showReadyBanner = false,
+    showMatchEnd = false,
+    matchWinnerId = null,
+    onRematch,
+    onQuit,
+    rematchPending = false,
 }) {
     const { socket } = useSocket();
     const canvasRef = useRef(null);
@@ -65,12 +71,13 @@ export default function FightCanvas({
                 localPlayerId,
                 allPlayers
             );
+            gameLoopRef.current.start();
 
             // --- 2. CLEANUP PHASE ---
             return () => {
                 console.log("FightCanvas: Unmounting. Stopping game engine...");
                 if (gameLoopRef.current) {
-                    gameLoopRef.current.stop(); // Call the new stop method
+                    gameLoopRef.current.destroy(); // Clean up listeners on unmount
                 }
                 if (inputBatcherRef.current) {
                     inputBatcherRef.current.destroy();
@@ -92,9 +99,6 @@ export default function FightCanvas({
     useEffect(() => {
         if (inputBatcherRef.current && gameLoopRef.current && matchStartData == null) {
             inputBatcherRef.current.resetForRound();
-            if (gameLoopRef.current.isRunning) {
-                gameLoopRef.current.stop();
-            }
         }
     }, [matchStartData]);
 
@@ -156,6 +160,14 @@ export default function FightCanvas({
         return <div className="flex items-center gap-1">{marks}</div>;
     };
 
+    const winnerLabel = () => {
+        if (!matchWinnerId) return "Match Over";
+        if (matchWinnerId === localPlayerId) return "You Win!";
+        if (matchWinnerId === player1?.id) return `${player1?.character?.name || "Player 1"} Wins`;
+        if (matchWinnerId === player2?.id) return `${player2?.character?.name || "Player 2"} Wins`;
+        return "Match Over";
+    };
+
     // The JSX for rendering the UI remains exactly the same
     return (
         <div className="space-y-4">
@@ -210,6 +222,40 @@ export default function FightCanvas({
                     width="1024"
                     height="576"
                 />
+                {showReadyBanner && (
+                    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+                        <div className="rounded-full bg-black/70 px-6 py-2 text-sm md:text-base font-semibold tracking-wide text-white">
+                            Ready... waiting for sync
+                        </div>
+                    </div>
+                )}
+                {showMatchEnd && (
+                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50">
+                        <div className="flex flex-col items-center gap-4 rounded-2xl bg-slate-900/90 px-8 py-6 text-white shadow-xl">
+                            <div className="text-2xl md:text-3xl font-bold">{winnerLabel()}</div>
+                            {rematchPending && (
+                                <div className="text-sm text-slate-300">Waiting for opponent...</div>
+                            )}
+                            <div className="flex items-center gap-3">
+                                <button
+                                    type="button"
+                                    className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:opacity-60"
+                                    onClick={onRematch}
+                                    disabled={rematchPending}
+                                >
+                                    Rematch
+                                </button>
+                                <button
+                                    type="button"
+                                    className="rounded-full bg-slate-700 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+                                    onClick={onQuit}
+                                >
+                                    Quit
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 <div id="status">Connecting to server...</div>
                 <div id="controls">Controls: Use ← and → arrow keys to move, ↑ to jump</div>
             </div>
