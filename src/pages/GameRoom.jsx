@@ -30,9 +30,12 @@ export default function GameRoom() {
     const [roundWinnerId, setRoundWinnerId] = useState(null);
     const readyRetryTimerRef = useRef(null);
     const roomStateRef = useRef(roomState);
+    const [startCountdown, setStartCountdown] = useState(null); // 3..1, then "FIGHT"
     const [matchStartData, setMatchStartData] = useState(null);
     const allPlayers = useRef(new Map()); // Store all players in the room
     const readyEmittedRef = useRef(false);
+    const countdownTimerRef = useRef(null);
+    const countdownHoldRef = useRef(null);
     // THIS HOOK IS PRESERVED FROM YOUR ORIGINAL CODE
     useEffect(() => {
         roomStateRef.current = roomState;
@@ -54,10 +57,6 @@ export default function GameRoom() {
         // This check prevents re-registering listeners on every render
         if (!socket) return;
 
-        console.log(`GameRoom: Emitting verifyRoom for roomId: ${roomId}`);
-        socket.emit("verifyRoom", roomId);
-        setRoomState("verifying");
-
         const handleRoomVerified = (inRoomAs) => {
             console.log(`GameRoom: Received roomVerified. inRoomAs: ${inRoomAs}`);
             if (!inRoomAs) {
@@ -70,14 +69,23 @@ export default function GameRoom() {
         };
 
         const handleCharacterSelected = (selectedChar = {}) => {
-            const { isPlayer1, character } = selectedChar;
-            const updater = () => ({ character: character }); // Update player object with final character
+            const { isPlayer1, character, username } = selectedChar;
+            const updater = (prev) => ({
+                ...(prev || {}),
+                character: character,
+                username: username ?? prev?.username,
+            });
 
             if (isPlayer1) {
                 setPlayer1(updater);
             } else {
                 setPlayer2(updater);
             }
+        };
+
+        const handleRoomPlayersUpdate = (payload = {}) => {
+            setPlayer1(payload.player1 ?? null);
+            setPlayer2(payload.player2 ?? null);
         };
 
         const initServerPlayers = (serverData) => {
@@ -179,6 +187,42 @@ export default function GameRoom() {
             setRoomState("finished");
         };
 
+        const handleStartCountdown = (payload = {}) => {
+            const seconds = Number(payload.seconds) || 3;
+            const tickMs = Number(payload.tickMs) || 1000;
+            const holdMs = Number(payload.holdMs) || 800;
+
+            if (roomStateRef.current !== "fighting") {
+                setRoomState("fighting");
+            }
+            setStartCountdown(seconds);
+
+            if (countdownTimerRef.current) {
+                clearInterval(countdownTimerRef.current);
+                countdownTimerRef.current = null;
+            }
+            if (countdownHoldRef.current) {
+                clearTimeout(countdownHoldRef.current);
+                countdownHoldRef.current = null;
+            }
+
+            let remaining = seconds;
+            countdownTimerRef.current = setInterval(() => {
+                remaining -= 1;
+                if (remaining <= 0) {
+                    clearInterval(countdownTimerRef.current);
+                    countdownTimerRef.current = null;
+                    setStartCountdown("FIGHT");
+                    countdownHoldRef.current = setTimeout(() => {
+                        setStartCountdown(null);
+                        countdownHoldRef.current = null;
+                    }, holdMs);
+                    return;
+                }
+                setStartCountdown(remaining);
+            }, tickMs);
+        };
+
         socket.on("playerJoined", addServerPlayer);
         socket.on("initServerPlayers", initServerPlayers);
         socket.on("matchStart", handleMatchStart);
@@ -186,13 +230,20 @@ export default function GameRoom() {
         socket.on("roundTimer", handleRoundTimer);
         socket.on("roundEnd", handleRoundEnd);
         socket.on("matchEnd", handleMatchEnd);
+        socket.on("startCountdown", handleStartCountdown);
 
         socket.on("roomVerified", handleRoomVerified);
         socket.on("characterSelected", handleCharacterSelected);
+        socket.on("roomPlayersUpdate", handleRoomPlayersUpdate);
+
+        console.log(`GameRoom: Emitting verifyRoom for roomId: ${roomId}`);
+        socket.emit("verifyRoom", roomId);
+        setRoomState("verifying");
 
         return () => {
             socket.off("roomVerified", handleRoomVerified);
             socket.off("characterSelected", handleCharacterSelected);
+            socket.off("roomPlayersUpdate", handleRoomPlayersUpdate);
             socket.off("playerJoined", addServerPlayer);
             socket.off("initServerPlayers", initServerPlayers);
             socket.off("matchStart", handleMatchStart);
@@ -200,22 +251,26 @@ export default function GameRoom() {
             socket.off("roundTimer", handleRoundTimer);
             socket.off("roundEnd", handleRoundEnd);
             socket.off("matchEnd", handleMatchEnd);
+            socket.off("startCountdown", handleStartCountdown);
             if (readyRetryTimerRef.current) {
                 clearInterval(readyRetryTimerRef.current);
                 readyRetryTimerRef.current = null;
             }
+            if (countdownTimerRef.current) {
+                clearInterval(countdownTimerRef.current);
+                countdownTimerRef.current = null;
+            }
+            if (countdownHoldRef.current) {
+                clearTimeout(countdownHoldRef.current);
+                countdownHoldRef.current = null;
+            }
         };
     }, [roomId, socket]); // Dependencies for setup
 
-    // NEW: This effect checks if both players are ready and starts the fight
     useEffect(() => {
-        // Check if both players have a character selected and we are not already fighting
-        if (player1?.character && player2?.character && roomState !== "fighting") {
-            // Give a brief moment for players to see the final matchup
-            setTimeout(() => {
-                setRoomState("fighting");
-            }, 1500); // 1.5-second pause before the fight starts
-        }
+        if (!player1?.character || !player2?.character) return;
+        if (roomState !== "verified") return;
+        setRoomState("fighting");
     }, [player1, player2, roomState]);
 
     function leaveRoom() {
@@ -231,7 +286,7 @@ export default function GameRoom() {
     };
 
     return (
-        <div className="space-y-6 container mx-auto p-4">
+        <div className="space-y-6 container mx-auto p-4 relative">
             <header className="flex items-center justify-between">
                 <Button variant="ghost" size="icon" onClick={leaveRoom}>
                     <ArrowLeft className="h-5 w-5" />
@@ -246,6 +301,13 @@ export default function GameRoom() {
             <hr />
 
             <main>
+                {startCountdown && roomState === "fighting" && (
+                    <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
+                        <div className="rounded-2xl bg-black/70 px-10 py-6 text-4xl md:text-6xl font-bold tracking-widest text-white shadow-xl">
+                            {startCountdown}
+                        </div>
+                    </div>
+                )}
                 {/* STATE 1: VERIFYING */}
                 {roomState === "verifying" && <p className="text-center text-xl">Entering Room...</p>}
 

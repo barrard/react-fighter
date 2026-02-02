@@ -1,6 +1,6 @@
 // src/components/FightCanvas.jsx
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSocket } from "../context/SocketContext";
 
 // UI Components
@@ -31,6 +31,17 @@ export default function FightCanvas({
     const gameLoopRef = useRef(null);
     const inputBatcherRef = useRef(null);
     const readySentRef = useRef(false);
+    const [hudHealth, setHudHealth] = useState({ p1: 100, p2: 100 });
+    const maxWins = 3;
+
+    const getHealthPercent = (playerId) => {
+        if (!playerId) return 100;
+        const p = allPlayers?.get?.(playerId);
+        if (!p) return 100;
+        const maxHealth = p.maxHealth || 100;
+        const health = Math.max(0, Math.min(p.health ?? maxHealth, maxHealth));
+        return maxHealth > 0 ? Math.round((health / maxHealth) * 100) : 0;
+    };
 
     useEffect(() => {
         if (socket && canvasRef.current) {
@@ -111,6 +122,40 @@ export default function FightCanvas({
         requestAnimationFrame(checkReady);
     }, [onCanvasReady]);
 
+    useEffect(() => {
+        if (!allPlayers) return;
+        let isMounted = true;
+        const timer = setInterval(() => {
+            if (!isMounted) return;
+            const next = {
+                p1: getHealthPercent(player1?.id),
+                p2: getHealthPercent(player2?.id),
+            };
+            setHudHealth((prev) => {
+                if (prev.p1 === next.p1 && prev.p2 === next.p2) return prev;
+                return next;
+            });
+        }, 100);
+        return () => {
+            isMounted = false;
+            clearInterval(timer);
+        };
+    }, [allPlayers, player1?.id, player2?.id]);
+
+    const renderScoreMarks = (wins = 0) => {
+        const marks = [];
+        for (let i = 0; i < maxWins; i += 1) {
+            const filled = i < wins;
+            marks.push(
+                <span
+                    key={i}
+                    className={`h-2 w-2 rounded-full ${filled ? "bg-emerald-400" : "bg-slate-600"}`}
+                />
+            );
+        }
+        return <div className="flex items-center gap-1">{marks}</div>;
+    };
+
     // The JSX for rendering the UI remains exactly the same
     return (
         <div className="space-y-4">
@@ -118,10 +163,13 @@ export default function FightCanvas({
             <div className="flex justify-between items-center gap-4 p-2 bg-slate-900/50 rounded-lg">
                 <div className="w-full space-y-2">
                     <div className="flex justify-between font-bold text-lg">
-                        <span>{player1.character?.name}</span>
-                        <span>P1</span>
+                        <span>{player1?.character?.name || "Player 1"}</span>
+                        <span className="flex items-center gap-2">
+                            {renderScoreMarks(roundScores?.player1Wins)}
+                            P1
+                        </span>
                     </div>
-                    <Progress value={100} className="h-6 [&>div]:bg-red-500" />
+                    <Progress value={hudHealth.p1} className="h-6 [&>div]:bg-red-500" />
                 </div>
                 <div className="flex flex-col items-center">
                     <Swords />
@@ -129,10 +177,13 @@ export default function FightCanvas({
                 </div>
                 <div className="w-full space-y-2">
                     <div className="flex justify-between font-bold text-lg">
-                        <span>P2</span>
-                        <span>{player2.character?.name}</span>
+                        <span className="flex items-center gap-2">
+                            P2
+                            {renderScoreMarks(roundScores?.player2Wins)}
+                        </span>
+                        <span>{player2?.character?.name || "Player 2"}</span>
                     </div>
-                    <Progress value={100} className="h-6 [&>div]:bg-red-500" />
+                    <Progress value={hudHealth.p2} className="h-6 [&>div]:bg-red-500" />
                 </div>
             </div>
             {roundNumber > 0 && roundScores && (

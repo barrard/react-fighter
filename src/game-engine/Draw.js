@@ -31,6 +31,28 @@ export function DrawPlayer(ctx, player) {
     ctx.fillRect(player.x, player.y, w, h);
 }
 
+export function DrawHealthBar(ctx, player) {
+    const w = player.characterWidth || PLAYER_WIDTH;
+    const h = player.characterHeight || PLAYER_HEIGHT;
+    const maxHealth = player.maxHealth || 100;
+    const health = Math.max(0, Math.min(player.health ?? maxHealth, maxHealth));
+    const pct = maxHealth > 0 ? health / maxHealth : 0;
+    const barHeight = 6;
+    const barPadding = 2;
+    const x = player.x;
+    const y = Math.max(2, player.y - barHeight - barPadding);
+
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillRect(x, y, w, barHeight);
+
+    ctx.fillStyle = pct > 0.5 ? "#22c55e" : pct > 0.2 ? "#f59e0b" : "#ef4444";
+    ctx.fillRect(x, y, w * pct, barHeight);
+
+    ctx.strokeStyle = "rgba(0,0,0,0.8)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, w, barHeight);
+}
+
 export function DrawPunch(ctx, player) {
     const w = player.characterWidth || PLAYER_WIDTH;
     ctx.fillStyle = "#FF9999"; // Lighter color for the arm

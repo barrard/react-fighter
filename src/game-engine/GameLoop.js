@@ -1,7 +1,16 @@
 // import CONSTS from "/js/contants.js";
 import CONSTS from "./contants.js";
 import { decodeGameStatePayload } from "@shared/stateCodec.js";
-import { DrawPlayer, DrawPunch, DrawKick, DrawFaceDirection, DrawYou, DrawFloor, DrawInitialScene } from "./Draw.js";
+import {
+    DrawPlayer,
+    DrawHealthBar,
+    DrawPunch,
+    DrawKick,
+    DrawFaceDirection,
+    DrawYou,
+    DrawFloor,
+    DrawInitialScene,
+} from "./Draw.js";
 // import { DrawPlayer, DrawPunch, DrawKick, DrawFaceDirection, DrawYou, DrawFloor, DrawInitialScene  } from "http://localhost:3000/js/Draw.js";
 
 class GameLoop {
@@ -562,6 +571,7 @@ class GameLoop {
         this.allPlayers.forEach((player) => {
             // Draw player rectangle
             DrawPlayer(this.ctx, player);
+            DrawHealthBar(this.ctx, player);
 
             // Draw punching animation (arm extension)
             if (player.isPunching || (player.id === this.localPlayerId && this.isPunching)) {
