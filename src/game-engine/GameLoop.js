@@ -185,11 +185,15 @@ class GameLoop {
                         // };
                         // this.allPlayers.set(serverPlayer.id, otherPlayer);
                     } else {
-                        // Existing player - update targets for interpolation
+                        // Snapshot the current drawn position as the lerp start
+                        otherPlayer.prevX = otherPlayer.x;
+                        otherPlayer.prevHeight = otherPlayer.height || 0;
+                        otherPlayer.snapshotTime = performance.now();
+
+                        // Set the new target
                         otherPlayer.targetX = serverPlayer.x;
                         otherPlayer.targetHeight = serverPlayer.height || 0;
                         otherPlayer.isJumping = serverPlayer.isJumping || false;
-                        otherPlayer.y = this.FLOOR_Y - this.PLAYER_HEIGHT - (serverPlayer.height || 0);
                         otherPlayer.health = serverPlayer.health;
                         if (serverPlayer.maxHealth !== undefined) {
                             otherPlayer.maxHealth = serverPlayer.maxHealth;
@@ -556,17 +560,21 @@ class GameLoop {
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // Apply interpolation to other players ONLY ONCE
+        // Interpolate remote players between their last two server snapshots
+        // Server sends updates every 3 ticks at 60Hz = every 50ms
+        const SNAPSHOT_INTERVAL_MS = (3 / this.SERVER_TICK_RATE) * 1000;
+        const now = performance.now();
         this.allPlayers.forEach((localPlayer) => {
-            // Skip local localPlayer
             localPlayer.currentFrame = this.frame;
-            if (localPlayer.id !== this.localPlayerId) {
-                // Only interpolate remote players
-                if (localPlayer.targetX !== undefined) {
-                    localPlayer.x = localPlayer.targetX;
+            if (localPlayer.id !== this.localPlayerId && localPlayer.snapshotTime !== undefined) {
+                const elapsed = now - localPlayer.snapshotTime;
+                const t = Math.min(elapsed / SNAPSHOT_INTERVAL_MS, 1);
+
+                if (localPlayer.targetX !== undefined && localPlayer.prevX !== undefined) {
+                    localPlayer.x = localPlayer.prevX + (localPlayer.targetX - localPlayer.prevX) * t;
                 }
-                if (localPlayer.targetHeight !== undefined) {
-                    localPlayer.height = localPlayer.targetHeight;
+                if (localPlayer.targetHeight !== undefined && localPlayer.prevHeight !== undefined) {
+                    localPlayer.height = localPlayer.prevHeight + (localPlayer.targetHeight - localPlayer.prevHeight) * t;
                     localPlayer.y = this.FLOOR_Y - this.PLAYER_HEIGHT - localPlayer.height;
                 }
             }

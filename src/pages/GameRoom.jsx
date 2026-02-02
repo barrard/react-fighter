@@ -102,27 +102,36 @@ export default function GameRoom() {
             const FLOOR_Y = CONSTS.CANVAS_HEIGHT - CONSTS.FLOOR_HEIGHT;
             // Add all existing players
             serverData.players.forEach((serverPlayer) => {
+                // Ensure height is initialized for lerp math
+                serverPlayer.height = serverPlayer.height || 0;
                 // Set initial y position on the floor
-                serverPlayer.y = FLOOR_Y - CONSTS.PLAYER_HEIGHT;
+                serverPlayer.y = FLOOR_Y - CONSTS.PLAYER_HEIGHT - serverPlayer.height;
                 // Set default facing direction if not provided
                 serverPlayer.facing = serverPlayer.facing || "right";
-                // Initialize interpolation targets for smooth movement
+                // Initialize interpolation state for smooth movement
                 serverPlayer.targetX = serverPlayer.x;
-                serverPlayer.targetHeight = serverPlayer.height || 0;
+                serverPlayer.targetHeight = serverPlayer.height;
+                serverPlayer.prevX = serverPlayer.x;
+                serverPlayer.prevHeight = serverPlayer.height;
+                serverPlayer.snapshotTime = performance.now();
                 allPlayers.current.set(serverPlayer.id, serverPlayer);
             });
             setRoundPrepared(true);
         };
 
         const addServerPlayer = (serverPlayer) => {
-            // console.log("New serverPlayer joined:", serverPlayer.id);
+            // Ensure height is initialized for lerp math
+            serverPlayer.height = serverPlayer.height || 0;
             // Set initial y position on the floor
-            serverPlayer.y = CONSTS.FLOOR_Y - CONSTS.PLAYER_HEIGHT;
+            serverPlayer.y = CONSTS.FLOOR_Y - CONSTS.PLAYER_HEIGHT - serverPlayer.height;
             // Set default facing direction if not provided
             serverPlayer.facing = serverPlayer.facing || "right";
-            // Initialize interpolation targets
+            // Initialize interpolation state
             serverPlayer.targetX = serverPlayer.x;
-            serverPlayer.targetHeight = serverPlayer.height || 0;
+            serverPlayer.targetHeight = serverPlayer.height;
+            serverPlayer.prevX = serverPlayer.x;
+            serverPlayer.prevHeight = serverPlayer.height;
+            serverPlayer.snapshotTime = performance.now();
             allPlayers.current.set(serverPlayer.id, serverPlayer);
         };
 
