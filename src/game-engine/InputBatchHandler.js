@@ -1,5 +1,6 @@
 // InputBatchHandler.js
 import { encodeInputMask } from "@shared/inputFlags.js";
+import { BASE_STATS } from "@shared/Characters.js";
 
 export default class InputBatchHandler {
     constructor(socket) {
@@ -27,10 +28,9 @@ export default class InputBatchHandler {
 
         this.setDefaultInputState();
 
-        // Constants for animation durations
-        this.PUNCH_DURATION = 300;
-        this.KICK_DURATION = 400;
-        this.JUMP_VELOCITY = -10;
+        // Animation durations from shared character stats
+        this.PUNCH_DURATION = BASE_STATS.punchDuration;
+        this.KICK_DURATION = BASE_STATS.kickDuration;
 
         // Flag to track if the state has changed since last send
         this.stateChanged = false;

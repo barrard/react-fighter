@@ -1,41 +1,109 @@
 import CONSTS from "./contants.js";
 
 const {
-    PREDICTION_BUFFER_MS,
-    inputCooldown,
-    INTERPOLATION_AMOUNT,
-    INTERPOLATION_DELAY,
-    PLAYER_WIDTH,
-    PLAYER_HEIGHT,
-    MOVEMENT_SPEED,
     FLOOR_HEIGHT,
-    JUMP_VELOCITY,
-    GRAVITY,
-    AIR_RESISTANCE,
-    GROUND_FRICTION,
-    PUNCH_DURATION,
-    KICK_DURATION,
-    ARM_WIDTH,
-    ARM_HEIGHT,
-    ARM_Y_OFFSET,
-    LEG_WIDTH,
-    LEG_HEIGHT,
-    LEG_Y_OFFSET,
+    STICK_HEAD_RADIUS,
+    STICK_HEAD_CENTER_Y,
+    STICK_NECK_Y,
+    STICK_SHOULDER_Y,
+    STICK_HIP_Y,
+    STICK_FOOT_Y,
+    STICK_LINE_WIDTH,
 } = CONSTS;
 
 export function DrawPlayer(ctx, player) {
-    // Draw player rectangle
-    const w = player.characterWidth || PLAYER_WIDTH;
-    const h = player.characterHeight || PLAYER_HEIGHT;
-    ctx.fillStyle = player.color || "#FF0000"; // Default to red if no color
-    ctx.fillRect(player.x, player.y, w, h);
+    ctx.save();
+
+    const w = player.characterWidth;
+    const h = player.characterHeight;
+    const cx = player.x + w / 2;
+    const color = player.color;
+
+    // Crouch compression factor
+    const crouch = player.isCrouching ? 0.5 : 1;
+
+    // Helper to compute y positions with crouch scaling
+    // When crouching, proportions compress toward the bottom of the bounding box
+    const yOff = (offset) => player.y + h - (h - offset) * crouch;
+
+    const headCY = yOff(STICK_HEAD_CENTER_Y);
+    const neckY = yOff(STICK_NECK_Y);
+    const shoulderY = yOff(STICK_SHOULDER_Y);
+    const hipY = yOff(STICK_HIP_Y);
+    const footY = yOff(STICK_FOOT_Y);
+    const headR = STICK_HEAD_RADIUS * crouch;
+
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = STICK_LINE_WIDTH;
+    ctx.lineCap = "round";
+
+    // Head — filled circle
+    ctx.beginPath();
+    ctx.arc(cx, headCY, headR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Torso — neck to hips
+    ctx.beginPath();
+    ctx.moveTo(cx, neckY);
+    ctx.lineTo(cx, hipY);
+    ctx.stroke();
+
+    // Arms (idle) — skip when punching, DrawPunch handles both arms
+    if (!player.isPunching) {
+        const armSpread = 15 * crouch;
+        const armDrop = 16 * crouch;
+        // Left arm
+        ctx.beginPath();
+        ctx.moveTo(cx, shoulderY);
+        ctx.lineTo(cx - armSpread, shoulderY + armDrop);
+        ctx.stroke();
+        // Right arm
+        ctx.beginPath();
+        ctx.moveTo(cx, shoulderY);
+        ctx.lineTo(cx + armSpread, shoulderY + armDrop);
+        ctx.stroke();
+    }
+
+    // Legs — skip when kicking, DrawKick handles both legs
+    if (!player.isKicking) {
+        if (player.isJumping) {
+            // Tuck legs when jumping — knees bent inward
+            const tuckX = 10 * crouch;
+            const tuckY = (hipY + footY) / 2; // knees at midpoint
+            // Left leg tucked
+            ctx.beginPath();
+            ctx.moveTo(cx, hipY);
+            ctx.lineTo(cx - tuckX, tuckY);
+            ctx.stroke();
+            // Right leg tucked
+            ctx.beginPath();
+            ctx.moveTo(cx, hipY);
+            ctx.lineTo(cx + tuckX, tuckY);
+            ctx.stroke();
+        } else {
+            // Standing legs — V-shape from hips to feet
+            const legSpread = 12;
+            // Left leg
+            ctx.beginPath();
+            ctx.moveTo(cx, hipY);
+            ctx.lineTo(cx - legSpread, footY);
+            ctx.stroke();
+            // Right leg
+            ctx.beginPath();
+            ctx.moveTo(cx, hipY);
+            ctx.lineTo(cx + legSpread, footY);
+            ctx.stroke();
+        }
+    }
+
+    ctx.restore();
 }
 
 export function DrawHealthBar(ctx, player) {
-    const w = player.characterWidth || PLAYER_WIDTH;
-    const h = player.characterHeight || PLAYER_HEIGHT;
-    const maxHealth = player.maxHealth || 100;
-    const health = Math.max(0, Math.min(player.health ?? maxHealth, maxHealth));
+    const w = player.characterWidth;
+    const maxHealth = player.maxHealth;
+    const health = Math.max(0, Math.min(player.health, maxHealth));
     const pct = maxHealth > 0 ? health / maxHealth : 0;
     const barHeight = 6;
     const barPadding = 2;
@@ -54,25 +122,66 @@ export function DrawHealthBar(ctx, player) {
 }
 
 export function DrawPunch(ctx, player) {
-    const w = player.characterWidth || PLAYER_WIDTH;
-    ctx.fillStyle = "#FF9999"; // Lighter color for the arm
+    ctx.save();
 
-    // Position arm based on facing direction
+    const w = player.characterWidth;
+    const h = player.characterHeight;
+    const cx = player.x + w / 2;
+    const color = player.color;
+
+    const crouch = player.isCrouching ? 0.5 : 1;
+    const yOff = (offset) => player.y + h - (h - offset) * crouch;
+
+    const shoulderY = yOff(STICK_SHOULDER_Y);
+    const armSpread = 15 * crouch;
+    const armDrop = 16 * crouch;
+
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = STICK_LINE_WIDTH;
+    ctx.lineCap = "round";
+
     if (player.facing === "right") {
-        ctx.fillRect(
-            player.x + w, // Start at right edge of player
-            player.y + ARM_Y_OFFSET,
-            ARM_WIDTH,
-            ARM_HEIGHT
-        );
+        // Non-punching arm (left) — idle position
+        ctx.beginPath();
+        ctx.moveTo(cx, shoulderY);
+        ctx.lineTo(cx - armSpread, shoulderY + armDrop);
+        ctx.stroke();
+
+        // Punching arm (right) — extends to hitbox endpoint
+        const fistX = player.x + w + player.armWidth;
+        const fistY = shoulderY;
+        ctx.beginPath();
+        ctx.moveTo(cx, shoulderY);
+        ctx.lineTo(fistX, fistY);
+        ctx.stroke();
+
+        // Fist circle
+        ctx.beginPath();
+        ctx.arc(fistX, fistY, 4, 0, Math.PI * 2);
+        ctx.fill();
     } else {
-        ctx.fillRect(
-            player.x - ARM_WIDTH, // Start at left edge and extend left
-            player.y + ARM_Y_OFFSET,
-            ARM_WIDTH,
-            ARM_HEIGHT
-        );
+        // Non-punching arm (right) — idle position
+        ctx.beginPath();
+        ctx.moveTo(cx, shoulderY);
+        ctx.lineTo(cx + armSpread, shoulderY + armDrop);
+        ctx.stroke();
+
+        // Punching arm (left) — extends to hitbox endpoint
+        const fistX = player.x - player.armWidth;
+        const fistY = shoulderY;
+        ctx.beginPath();
+        ctx.moveTo(cx, shoulderY);
+        ctx.lineTo(fistX, fistY);
+        ctx.stroke();
+
+        // Fist circle
+        ctx.beginPath();
+        ctx.arc(fistX, fistY, 4, 0, Math.PI * 2);
+        ctx.fill();
     }
+
+    ctx.restore();
 }
 
 export function DrawInitialScene(canvas, ctx) {
@@ -97,103 +206,158 @@ export function DrawInitialScene(canvas, ctx) {
 }
 
 export function DrawKick(ctx, player) {
-    const w = player.characterWidth || PLAYER_WIDTH;
-    ctx.fillStyle = "#FF9999"; // Lighter color for the leg
+    ctx.save();
 
-    // Position leg based on facing direction
+    const w = player.characterWidth;
+    const h = player.characterHeight;
+    const cx = player.x + w / 2;
+    const color = player.color;
+
+    const crouch = player.isCrouching ? 0.5 : 1;
+    const yOff = (offset) => player.y + h - (h - offset) * crouch;
+
+    const hipY = yOff(STICK_HIP_Y);
+    const footY = yOff(STICK_FOOT_Y);
+    const legSpread = 12;
+
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = STICK_LINE_WIDTH;
+    ctx.lineCap = "round";
+
+    // Kick Y position — use player's legYOffset for hitbox alignment
+    const kickY = yOff(player.legYOffset);
+
     if (player.facing === "right") {
-        ctx.fillRect(
-            player.x + w, // Start at right edge of player
-            player.y + LEG_Y_OFFSET, // Position at lower part of character
-            LEG_WIDTH,
-            LEG_HEIGHT
-        );
+        // Non-kicking leg (left) — idle position
+        ctx.beginPath();
+        ctx.moveTo(cx, hipY);
+        ctx.lineTo(cx - legSpread, footY);
+        ctx.stroke();
+
+        // Kicking leg (right) — extends to hitbox endpoint
+        const footEndX = player.x + w + player.legWidth;
+        ctx.beginPath();
+        ctx.moveTo(cx, hipY);
+        ctx.lineTo(footEndX, kickY);
+        ctx.stroke();
+
+        // Foot circle
+        ctx.beginPath();
+        ctx.arc(footEndX, kickY, 4, 0, Math.PI * 2);
+        ctx.fill();
     } else {
-        ctx.fillRect(
-            player.x - LEG_WIDTH, // Start at left edge and extend left
-            player.y + LEG_Y_OFFSET,
-            LEG_WIDTH,
-            LEG_HEIGHT
-        );
+        // Non-kicking leg (right) — idle position
+        ctx.beginPath();
+        ctx.moveTo(cx, hipY);
+        ctx.lineTo(cx + legSpread, footY);
+        ctx.stroke();
+
+        // Kicking leg (left) — extends to hitbox endpoint
+        const footEndX = player.x - player.legWidth;
+        ctx.beginPath();
+        ctx.moveTo(cx, hipY);
+        ctx.lineTo(footEndX, kickY);
+        ctx.stroke();
+
+        // Foot circle
+        ctx.beginPath();
+        ctx.arc(footEndX, kickY, 4, 0, Math.PI * 2);
+        ctx.fill();
     }
+
+    ctx.restore();
 }
 
 export function DrawFaceDirection(ctx, player) {
-    const w = player.characterWidth || PLAYER_WIDTH;
-    const h = player.characterHeight || PLAYER_HEIGHT;
-    ctx.fillStyle = "black";
-    const midY = player.y + h / 2;
+    ctx.save();
+
+    const w = player.characterWidth;
+    const h = player.characterHeight;
+    const cx = player.x + w / 2;
+
+    const crouch = player.isCrouching ? 0.5 : 1;
+    const headCY = player.y + h - (h - STICK_HEAD_CENTER_Y) * crouch;
+    const headR = STICK_HEAD_RADIUS * crouch;
+
+    // Eye placement on the head
+    const eyeR = 2.5;
+    const pupilR = 1.2;
+    const eyeOffsetX = headR * 0.35; // horizontal offset from center
+    const eyeSpacing = headR * 0.35; // spacing between eyes
+    const eyeOffsetY = -headR * 0.1; // slightly above center
 
     if (player.facing === "right") {
-        // Draw triangle pointing right
+        const eye1X = cx + eyeOffsetX;
+        const eye2X = cx + eyeOffsetX + eyeSpacing;
+        const eyeY = headCY + eyeOffsetY;
+
+        // White eye circles
+        ctx.fillStyle = "white";
         ctx.beginPath();
-        ctx.moveTo(player.x + w, midY);
-        ctx.lineTo(player.x + w - 15, midY - 10);
-        ctx.lineTo(player.x + w - 15, midY + 10);
-        ctx.closePath();
+        ctx.arc(eye1X, eyeY, eyeR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(eye2X, eyeY, eyeR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Pupils — shifted toward facing direction
+        ctx.fillStyle = "black";
+        ctx.beginPath();
+        ctx.arc(eye1X + 0.8, eyeY, pupilR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(eye2X + 0.8, eyeY, pupilR, 0, Math.PI * 2);
         ctx.fill();
     } else {
-        // facing left
-        // Draw triangle pointing left
+        const eye1X = cx - eyeOffsetX;
+        const eye2X = cx - eyeOffsetX - eyeSpacing;
+        const eyeY = headCY + eyeOffsetY;
+
+        // White eye circles
+        ctx.fillStyle = "white";
         ctx.beginPath();
-        ctx.moveTo(player.x, midY);
-        ctx.lineTo(player.x + 15, midY - 10);
-        ctx.lineTo(player.x + 15, midY + 10);
-        ctx.closePath();
+        ctx.arc(eye1X, eyeY, eyeR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(eye2X, eyeY, eyeR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Pupils — shifted toward facing direction
+        ctx.fillStyle = "black";
+        ctx.beginPath();
+        ctx.arc(eye1X - 0.8, eyeY, pupilR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(eye2X - 0.8, eyeY, pupilR, 0, Math.PI * 2);
         ctx.fill();
     }
 
-    // Draw eyes to indicate facing direction
-    ctx.fillStyle = "white";
-    if (player.facing === "right") {
-        // Right-facing eyes
-        ctx.beginPath();
-        ctx.arc(player.x + w - 15, player.y + 30, 5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(player.x + w - 30, player.y + 30, 5, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Pupils
-        ctx.fillStyle = "black";
-        ctx.beginPath();
-        ctx.arc(player.x + w - 13, player.y + 30, 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(player.x + w - 28, player.y + 30, 2, 0, Math.PI * 2);
-        ctx.fill();
-    } else {
-        // Left-facing eyes
-        ctx.beginPath();
-        ctx.arc(player.x + 15, player.y + 30, 5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(player.x + 30, player.y + 30, 5, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Pupils
-        ctx.fillStyle = "black";
-        ctx.beginPath();
-        ctx.arc(player.x + 13, player.y + 30, 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(player.x + 28, player.y + 30, 2, 0, Math.PI * 2);
-        ctx.fill();
-    }
+    ctx.restore();
 }
 
 export function DrawYou(ctx, player) {
-    const w = player.characterWidth || PLAYER_WIDTH;
-    const h = player.characterHeight || PLAYER_HEIGHT;
-    ctx.strokeStyle = "black";
-    ctx.lineWidth = 3;
-    ctx.strokeRect(player.x, player.y, w, h);
+    ctx.save();
 
-    // Add "YOU" label
+    const w = player.characterWidth;
+    const h = player.characterHeight;
+    const cx = player.x + w / 2;
+
+    // "YOU" label above player
     ctx.fillStyle = "black";
     ctx.font = "12px Arial";
     ctx.textAlign = "center";
-    ctx.fillText("YOU", player.x + w / 2, player.y - 10);
+    ctx.fillText("YOU", cx, player.y - 10);
+
+    // Dashed ellipse outline around the stick figure
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.ellipse(cx, player.y + h / 2, w / 2 + 4, h / 2 + 4, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.restore();
 }
 
 export function DrawFloor(ctx, canvas) {

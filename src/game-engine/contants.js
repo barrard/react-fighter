@@ -1,41 +1,36 @@
+// Import true constants from shared
+import {
+    CANVAS_WIDTH,
+    CANVAS_HEIGHT,
+    FLOOR_HEIGHT,
+    FLOOR_Y,
+    GRAVITY,
+    SERVER_TICK_RATE,
+} from "@shared/gameConstants.js";
+
 const CONSTS = {
-    PREDICTION_BUFFER_MS: 100, // Allow client to be 100ms ahead
+    // Re-exported from shared (single source of truth)
+    CANVAS_WIDTH,
+    CANVAS_HEIGHT,
+    FLOOR_HEIGHT,
+    FLOOR_Y,
+    GRAVITY,
+    SERVER_TICK_RATE,
 
-    inputCooldown: 100, // ms
-    INTERPOLATION_AMOUNT: 0.2, // Lower = smoother but less responsive
-    INTERPOLATION_DELAY: 100, // ms - buffer for smoother interpolation
-    PLAYER_WIDTH: 50,
-    PLAYER_HEIGHT: 100,
-    MOVEMENT_SPEED: 5, // Pixels per frame
-    FLOOR_HEIGHT: 40,
-    JUMP_VELOCITY: -15, // Negative because y-axis increases downward
-    GRAVITY: 0.8,
-    AIR_RESISTANCE: 0, // How quickly velocity decreases in air
-    GROUND_FRICTION: 0, // How quickly velocity decreases on ground
+    // Client-only constants
+    PREDICTION_BUFFER_MS: 100,
+    inputCooldown: 100,
+    INTERPOLATION_AMOUNT: 0.2,
+    INTERPOLATION_DELAY: 100,
 
-    // Add these new constants for fighting mechanics
-    PUNCH_DURATION: 300, // milliseconds
-    KICK_DURATION: 400, // milliseconds
-    ARM_WIDTH: 30, // pixels
-    ARM_HEIGHT: 10, // pixels
-    ARM_Y_OFFSET: 30, // 70px from top of 100px character
-    LEG_WIDTH: 35, // pixels
-    LEG_HEIGHT: 8, // pixels
-    LEG_Y_OFFSET: 70, // Position from top of character
-
-    //SERVER SIDE
-    SERVER_TICK_RATE: 60,
-
-    //SCENE
-    CANVAS_HEIGHT: 576,
-    CANVAS_WIDTH: 1024,
-    FLOOR_Y: () => {
-        return CONSTS.CANVAS_HEIGHT - CONSTS.FLOOR_HEIGHT;
-    },
-
-    // if (canvas) {
-    //     CONSTS.FLOOR_Y = canvas.height - CONSTS.FLOOR_HEIGHT;
-    //     CONSTS.FLOOR_Y = CANVAS_HEIGHT - FLOOR_HEIGHT;
+    // Stick figure drawing proportions (client-only visual constants)
+    STICK_HEAD_RADIUS: 10,
+    STICK_HEAD_CENTER_Y: 12,
+    STICK_NECK_Y: 22,
+    STICK_SHOULDER_Y: 30,
+    STICK_HIP_Y: 62,
+    STICK_FOOT_Y: 98,
+    STICK_LINE_WIDTH: 3,
 };
 
 export default CONSTS;

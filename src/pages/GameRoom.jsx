@@ -94,18 +94,15 @@ export default function GameRoom() {
         const initServerPlayers = (serverData) => {
             // Clear existing players to ensure a fresh state
             allPlayers.current.clear();
-            // Set the local player ID if it's provided in serverData
-            // This assumes serverData.localPlayerId is sent by the server
-            // if (serverData.localPlayerId) {
-            //     localPlayerId.current = serverData.localPlayerId;
-            // }
             const FLOOR_Y = CONSTS.CANVAS_HEIGHT - CONSTS.FLOOR_HEIGHT;
+            console.log("initServerPlayers received:", serverData.players);
             // Add all existing players
             serverData.players.forEach((serverPlayer) => {
                 // Ensure height is initialized for lerp math
                 serverPlayer.height = serverPlayer.height || 0;
-                // Set initial y position on the floor
-                serverPlayer.y = FLOOR_Y - CONSTS.PLAYER_HEIGHT - serverPlayer.height;
+                // Set initial y position on the floor using player's characterHeight
+                serverPlayer.y = FLOOR_Y - serverPlayer.characterHeight - serverPlayer.height;
+                console.log(`Player ${serverPlayer.id}: characterHeight=${serverPlayer.characterHeight}, y=${serverPlayer.y}`);
                 // Set default facing direction if not provided
                 serverPlayer.facing = serverPlayer.facing || "right";
                 // Initialize interpolation state for smooth movement
@@ -122,8 +119,9 @@ export default function GameRoom() {
         const addServerPlayer = (serverPlayer) => {
             // Ensure height is initialized for lerp math
             serverPlayer.height = serverPlayer.height || 0;
-            // Set initial y position on the floor
-            serverPlayer.y = CONSTS.FLOOR_Y - CONSTS.PLAYER_HEIGHT - serverPlayer.height;
+            // Set initial y position on the floor using player's characterHeight
+            const FLOOR_Y = CONSTS.CANVAS_HEIGHT - CONSTS.FLOOR_HEIGHT;
+            serverPlayer.y = FLOOR_Y - serverPlayer.characterHeight - serverPlayer.height;
             // Set default facing direction if not provided
             serverPlayer.facing = serverPlayer.facing || "right";
             // Initialize interpolation state

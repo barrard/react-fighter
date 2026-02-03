@@ -44,47 +44,15 @@ class GameLoop {
         }, 1000);
 
         const {
-            PREDICTION_BUFFER_MS,
-            inputCooldown,
-            // INTERPOLATION_AMOUNT,
-            INTERPOLATION_DELAY,
-            PLAYER_WIDTH,
-            PLAYER_HEIGHT,
-            MOVEMENT_SPEED,
             FLOOR_HEIGHT,
-            JUMP_VELOCITY,
             GRAVITY,
-            AIR_RESISTANCE,
-            GROUND_FRICTION,
-            PUNCH_DURATION,
-            KICK_DURATION,
-            ARM_WIDTH,
-            ARM_HEIGHT,
-            ARM_Y_OFFSET,
-            LEG_WIDTH,
-            LEG_HEIGHT,
-            FLOOR_Y,
-            LEG_Y_OFFSET,
             SERVER_TICK_RATE,
             CANVAS_HEIGHT,
         } = CONSTS;
 
         this.FLOOR_Y = CANVAS_HEIGHT - FLOOR_HEIGHT;
-        this.MOVEMENT_SPEED = MOVEMENT_SPEED;
-        this.JUMP_VELOCITY = JUMP_VELOCITY;
         this.GRAVITY = GRAVITY;
         this.SERVER_TICK_RATE = SERVER_TICK_RATE;
-        this.AIR_RESISTANCE = AIR_RESISTANCE;
-        this.GROUND_FRICTION = GROUND_FRICTION;
-        this.PUNCH_DURATION = PUNCH_DURATION;
-        this.KICK_DURATION = KICK_DURATION;
-        this.ARM_WIDTH = ARM_WIDTH;
-        this.ARM_HEIGHT = ARM_HEIGHT;
-        this.ARM_Y_OFFSET = ARM_Y_OFFSET;
-        this.LEG_WIDTH = LEG_WIDTH;
-        this.LEG_HEIGHT = LEG_HEIGHT;
-        this.PLAYER_HEIGHT = PLAYER_HEIGHT;
-        this.PLAYER_WIDTH = PLAYER_WIDTH;
 
         this.animationFrameId = null; // Add this to track the loop
         this.isRunning = false; // Add a flag to prevent multiple loops
@@ -194,6 +162,10 @@ class GameLoop {
                         otherPlayer.targetX = serverPlayer.x;
                         otherPlayer.targetHeight = serverPlayer.height || 0;
                         otherPlayer.isJumping = serverPlayer.isJumping || false;
+                        otherPlayer.isCrouching = serverPlayer.isCrouching || false;
+                        if (serverPlayer.isCrouching) {
+                            console.log("Remote player crouching:", serverPlayer.id, serverPlayer.isCrouching);
+                        }
                         otherPlayer.health = serverPlayer.health;
                         if (serverPlayer.maxHealth !== undefined) {
                             otherPlayer.maxHealth = serverPlayer.maxHealth;
@@ -300,7 +272,7 @@ class GameLoop {
         // 1. Apply authoritative server state
         localFuturePlayer.x = serverPlayerLocal.x;
         localFuturePlayer.height = serverPlayerLocal.height || 0;
-        localFuturePlayer.y = this.FLOOR_Y - this.PLAYER_HEIGHT - localFuturePlayer.height;
+        localFuturePlayer.y = this.FLOOR_Y - localFuturePlayer.characterHeight - localFuturePlayer.height;
         localFuturePlayer.horizontalVelocity = serverPlayerLocal.horizontalVelocity || 0;
         localFuturePlayer.verticalVelocity = serverPlayerLocal.verticalVelocity || 0;
         localFuturePlayer.isJumping = serverPlayerLocal.isJumping || false;
@@ -308,13 +280,8 @@ class GameLoop {
             localFuturePlayer.facing = serverPlayerLocal.facing;
         }
 
-        // Sync character-specific stats from server
-        if (serverPlayerLocal.movementSpeed !== undefined) localFuturePlayer.movementSpeed = serverPlayerLocal.movementSpeed;
-        if (serverPlayerLocal.jumpVelocity !== undefined) localFuturePlayer.jumpVelocity = serverPlayerLocal.jumpVelocity;
-        if (serverPlayerLocal.characterWidth !== undefined) localFuturePlayer.characterWidth = serverPlayerLocal.characterWidth;
-        if (serverPlayerLocal.characterHeight !== undefined) localFuturePlayer.characterHeight = serverPlayerLocal.characterHeight;
+        // Sync health from server (stateCodec transmits health)
         if (serverPlayerLocal.health !== undefined) localFuturePlayer.health = serverPlayerLocal.health;
-        if (serverPlayerLocal.maxHealth !== undefined) localFuturePlayer.maxHealth = serverPlayerLocal.maxHealth;
 
         // 2. Tick-based reconciliation
         const lastProcessedTick = serverPlayerLocal.lastProcessedTick || 0;
@@ -345,7 +312,7 @@ class GameLoop {
             }
 
             // Apply reconciled state
-            localFuturePlayer.x = this.clampX(currentState.x, localFuturePlayer);
+            localFuturePlayer.x = this.clampX(currentState.x);
             localFuturePlayer.y = currentState.y;
             localFuturePlayer.height = currentState.height;
             localFuturePlayer.horizontalVelocity = currentState.horizontalVelocity;
@@ -369,8 +336,8 @@ class GameLoop {
     // Simulate one tick of player movement — must match server logic exactly
     simulatePlayerMovementFrame(playerState, keysPressed) {
         const localPlayer = this.allPlayers.get(this.localPlayerId);
-        const moveSpeed = localPlayer?.movementSpeed || this.MOVEMENT_SPEED;
-        const jumpVel = localPlayer?.jumpVelocity || this.JUMP_VELOCITY;
+        const moveSpeed = localPlayer.movementSpeed;
+        const jumpVel = localPlayer.jumpVelocity;
         const gravity = this.GRAVITY;
 
         const newState = { ...playerState };
@@ -401,7 +368,7 @@ class GameLoop {
 
         // Update position with time-scaled movement
         newState.x += newState.horizontalVelocity;
-        newState.x = this.clampX(newState.x, newState);
+        newState.x = this.clampX(newState.x);
         newState.height -= newState.verticalVelocity;
 
         // Handle landing
@@ -413,8 +380,8 @@ class GameLoop {
             newState.verticalVelocity += gravity;
         }
 
-        // Update y position based on height
-        newState.y = this.FLOOR_Y - this.PLAYER_HEIGHT / (newState.isCrouching ? 2 : 1) - newState.height;
+        // Update y position based on height (use localPlayer's characterHeight)
+        newState.y = this.FLOOR_Y - localPlayer.characterHeight / (newState.isCrouching ? 2 : 1) - newState.height;
         if (newState.startJump) {
             newState.startJump = false;
             newState.isJumping = true;
@@ -422,8 +389,9 @@ class GameLoop {
         return newState;
     }
 
-    clampX(x, playerState) {
-        const width = playerState?.characterWidth || this.PLAYER_WIDTH;
+    clampX(x) {
+        const localPlayer = this.allPlayers.get(this.localPlayerId);
+        const width = localPlayer?.characterWidth || 50;
         const canvasWidth = this.canvas?.width || CONSTS.CANVAS_WIDTH;
         const maxX = Math.max(0, canvasWidth - width);
         return Math.max(0, Math.min(maxX, x));
@@ -455,9 +423,9 @@ class GameLoop {
             frame: this.frame,
             serverTick: this.localInputs.getEstimatedServerTick(),
         });
-        // Use character-specific stats, falling back to static constants
-        const moveSpeed = player.movementSpeed || this.MOVEMENT_SPEED;
-        const jumpVel = player.jumpVelocity || this.JUMP_VELOCITY;
+        // Use character-specific stats from player object
+        const moveSpeed = player.movementSpeed;
+        const jumpVel = player.jumpVelocity;
 
         // Apply horizontal movement with time scaling
         if (onGround) {
@@ -489,7 +457,7 @@ class GameLoop {
         // Apply horizontal velocity with smoothing
         player.x += this.horizontalVelocity;
         // Constrain player within boundaries
-        player.x = this.clampX(player.x, player);
+        player.x = this.clampX(player.x);
         const adj = this.localX_Adjustment != 0 ? Math.floor(this.localX_Adjustment / 3) : this.localX_Adjustment;
         this.totalXBeenAdjusted += adj;
         if (Math.abs(this.totalXBeenAdjusted) < Math.abs(this.localX_Adjustment)) {
@@ -514,7 +482,7 @@ class GameLoop {
                 this.localInputs.isJumping = false;
                 player.isJumping = false;
             }
-            player.y = this.FLOOR_Y - this.PLAYER_HEIGHT - player.height;
+            player.y = this.FLOOR_Y - player.characterHeight - player.height;
         }
         // console.log({
         //     "pcGL.currentTick end": player.currentTick,
@@ -575,7 +543,7 @@ class GameLoop {
                 }
                 if (localPlayer.targetHeight !== undefined && localPlayer.prevHeight !== undefined) {
                     localPlayer.height = localPlayer.prevHeight + (localPlayer.targetHeight - localPlayer.prevHeight) * t;
-                    localPlayer.y = this.FLOOR_Y - this.PLAYER_HEIGHT - localPlayer.height;
+                    localPlayer.y = this.FLOOR_Y - localPlayer.characterHeight - localPlayer.height;
                 }
             }
         });
