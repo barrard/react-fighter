@@ -18,20 +18,25 @@ export function DrawPlayer(ctx, player) {
     const h = player.characterHeight;
     const cx = player.x + w / 2;
     const color = player.color;
+    const isCrouching = player.isCrouching;
 
-    // Crouch compression factor
-    const crouch = player.isCrouching ? 0.5 : 1;
+    // Base positions (standing)
+    const baseFootY = player.y + h - (h - STICK_FOOT_Y);
+    const baseHipY = player.y + h - (h - STICK_HIP_Y);
+    const baseShoulderY = player.y + h - (h - STICK_SHOULDER_Y);
+    const baseNeckY = player.y + h - (h - STICK_NECK_Y);
+    const baseHeadCY = player.y + h - (h - STICK_HEAD_CENTER_Y);
 
-    // Helper to compute y positions with crouch scaling
-    // When crouching, proportions compress toward the bottom of the bounding box
-    const yOff = (offset) => player.y + h - (h - offset) * crouch;
+    // Crouch offsets — lower the upper body, keep feet planted
+    const crouchDrop = isCrouching ? 38 : 0; // how much the hips drop
+    const torsoShrink = isCrouching ? 14 : 0; // torso/neck shortens
 
-    const headCY = yOff(STICK_HEAD_CENTER_Y);
-    const neckY = yOff(STICK_NECK_Y);
-    const shoulderY = yOff(STICK_SHOULDER_Y);
-    const hipY = yOff(STICK_HIP_Y);
-    const footY = yOff(STICK_FOOT_Y);
-    const headR = STICK_HEAD_RADIUS * crouch;
+    const footY = baseFootY; // feet stay planted
+    const hipY = baseHipY + crouchDrop;
+    const shoulderY = baseShoulderY + crouchDrop + torsoShrink;
+    const neckY = baseNeckY + crouchDrop + torsoShrink;
+    const headCY = baseHeadCY + crouchDrop + torsoShrink;
+    const headR = STICK_HEAD_RADIUS; // head stays same size
 
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
@@ -51,25 +56,55 @@ export function DrawPlayer(ctx, player) {
 
     // Arms (idle) — skip when punching, DrawPunch handles both arms
     if (!player.isPunching) {
-        const armSpread = 15 * crouch;
-        const armDrop = 16 * crouch;
-        // Left arm
-        ctx.beginPath();
-        ctx.moveTo(cx, shoulderY);
-        ctx.lineTo(cx - armSpread, shoulderY + armDrop);
-        ctx.stroke();
-        // Right arm
-        ctx.beginPath();
-        ctx.moveTo(cx, shoulderY);
-        ctx.lineTo(cx + armSpread, shoulderY + armDrop);
-        ctx.stroke();
+        const armSpread = 15;
+        const armDrop = 16;
+
+        // Check if player is walking
+        // Local player: use horizontalVelocity
+        // Remote player: check if interpolation target differs from current position
+        const hasVelocity = player.horizontalVelocity && player.horizontalVelocity !== 0;
+        const isInterpolating = player.targetX !== undefined && Math.abs(player.targetX - player.x) > 0.5;
+        const isWalking = (hasVelocity || isInterpolating) && !player.isJumping && !isCrouching;
+
+        if (isWalking) {
+            // Walking animation — arms swing opposite to legs
+            // Slower animation: divide by 35 instead of 20 for longer strides
+            const walkCycle = (player.x / 35) * Math.PI;
+            const armSwing = Math.sin(walkCycle) * 12; // arm swing amplitude
+
+            // Left arm — swings with right leg (opposite to left leg)
+            const leftArmX = cx - armSpread - armSwing;
+            ctx.beginPath();
+            ctx.moveTo(cx, shoulderY);
+            ctx.lineTo(leftArmX, shoulderY + armDrop);
+            ctx.stroke();
+
+            // Right arm — swings with left leg (opposite to right leg)
+            const rightArmX = cx + armSpread + armSwing;
+            ctx.beginPath();
+            ctx.moveTo(cx, shoulderY);
+            ctx.lineTo(rightArmX, shoulderY + armDrop);
+            ctx.stroke();
+        } else {
+            // Idle/crouch standing arms
+            // Left arm
+            ctx.beginPath();
+            ctx.moveTo(cx, shoulderY);
+            ctx.lineTo(cx - armSpread, shoulderY + armDrop);
+            ctx.stroke();
+            // Right arm
+            ctx.beginPath();
+            ctx.moveTo(cx, shoulderY);
+            ctx.lineTo(cx + armSpread, shoulderY + armDrop);
+            ctx.stroke();
+        }
     }
 
     // Legs — skip when kicking, DrawKick handles both legs
     if (!player.isKicking) {
         if (player.isJumping) {
             // Tuck legs when jumping — knees bent inward
-            const tuckX = 10 * crouch;
+            const tuckX = 10;
             const tuckY = (hipY + footY) / 2; // knees at midpoint
             // Left leg tucked
             ctx.beginPath();
@@ -81,19 +116,68 @@ export function DrawPlayer(ctx, player) {
             ctx.moveTo(cx, hipY);
             ctx.lineTo(cx + tuckX, tuckY);
             ctx.stroke();
+        } else if (isCrouching) {
+            // Crouching — bent knees, feet planted wide
+            const kneeSpread = 20; // knees go outward
+            const footSpread = 14; // feet slightly wider than normal
+            const kneeY = hipY + (footY - hipY) * 0.5; // knee at midpoint
+
+            // Left leg — hip to knee to foot
+            ctx.beginPath();
+            ctx.moveTo(cx, hipY);
+            ctx.lineTo(cx - kneeSpread, kneeY);
+            ctx.lineTo(cx - footSpread, footY);
+            ctx.stroke();
+
+            // Right leg — hip to knee to foot
+            ctx.beginPath();
+            ctx.moveTo(cx, hipY);
+            ctx.lineTo(cx + kneeSpread, kneeY);
+            ctx.lineTo(cx + footSpread, footY);
+            ctx.stroke();
         } else {
-            // Standing legs — V-shape from hips to feet
+            // Check if player is walking
+            // Local player: use horizontalVelocity
+            // Remote player: check if interpolation target differs from current position
+            const hasVelocity = player.horizontalVelocity && player.horizontalVelocity !== 0;
+            const isInterpolating = player.targetX !== undefined && Math.abs(player.targetX - player.x) > 0.5;
+            const isWalking = hasVelocity || isInterpolating;
             const legSpread = 12;
-            // Left leg
-            ctx.beginPath();
-            ctx.moveTo(cx, hipY);
-            ctx.lineTo(cx - legSpread, footY);
-            ctx.stroke();
-            // Right leg
-            ctx.beginPath();
-            ctx.moveTo(cx, hipY);
-            ctx.lineTo(cx + legSpread, footY);
-            ctx.stroke();
+
+            if (isWalking) {
+                // Walking animation — use x position to drive cycle
+                // Slower animation: full stride every ~70 pixels of movement
+                const walkCycle = (player.x / 35) * Math.PI;
+                const legSwing = Math.sin(walkCycle) * 18; // leg swing amplitude
+
+                // Left leg — swings opposite to right
+                const leftFootX = cx - legSpread + legSwing;
+                const leftFootY = footY - Math.abs(Math.sin(walkCycle)) * 8; // lift foot slightly
+                ctx.beginPath();
+                ctx.moveTo(cx, hipY);
+                ctx.lineTo(leftFootX, leftFootY);
+                ctx.stroke();
+
+                // Right leg — opposite phase
+                const rightFootX = cx + legSpread - legSwing;
+                const rightFootY = footY - Math.abs(Math.cos(walkCycle)) * 8; // lift foot slightly
+                ctx.beginPath();
+                ctx.moveTo(cx, hipY);
+                ctx.lineTo(rightFootX, rightFootY);
+                ctx.stroke();
+            } else {
+                // Standing legs — V-shape from hips to feet
+                // Left leg
+                ctx.beginPath();
+                ctx.moveTo(cx, hipY);
+                ctx.lineTo(cx - legSpread, footY);
+                ctx.stroke();
+                // Right leg
+                ctx.beginPath();
+                ctx.moveTo(cx, hipY);
+                ctx.lineTo(cx + legSpread, footY);
+                ctx.stroke();
+            }
         }
     }
 
@@ -128,13 +212,16 @@ export function DrawPunch(ctx, player) {
     const h = player.characterHeight;
     const cx = player.x + w / 2;
     const color = player.color;
+    const isCrouching = player.isCrouching;
 
-    const crouch = player.isCrouching ? 0.5 : 1;
-    const yOff = (offset) => player.y + h - (h - offset) * crouch;
+    // Crouch offsets — same as DrawPlayer
+    const crouchDrop = isCrouching ? 38 : 0;
+    const torsoShrink = isCrouching ? 14 : 0;
 
-    const shoulderY = yOff(STICK_SHOULDER_Y);
-    const armSpread = 15 * crouch;
-    const armDrop = 16 * crouch;
+    const baseShoulderY = player.y + h - (h - STICK_SHOULDER_Y);
+    const shoulderY = baseShoulderY + crouchDrop + torsoShrink;
+    const armSpread = 15;
+    const armDrop = 16;
 
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
@@ -212,12 +299,15 @@ export function DrawKick(ctx, player) {
     const h = player.characterHeight;
     const cx = player.x + w / 2;
     const color = player.color;
+    const isCrouching = player.isCrouching;
 
-    const crouch = player.isCrouching ? 0.5 : 1;
-    const yOff = (offset) => player.y + h - (h - offset) * crouch;
+    // Crouch offsets — same as DrawPlayer
+    const crouchDrop = isCrouching ? 38 : 0;
 
-    const hipY = yOff(STICK_HIP_Y);
-    const footY = yOff(STICK_FOOT_Y);
+    const baseHipY = player.y + h - (h - STICK_HIP_Y);
+    const baseFootY = player.y + h - (h - STICK_FOOT_Y);
+    const hipY = baseHipY + crouchDrop;
+    const footY = baseFootY; // feet stay planted
     const legSpread = 12;
 
     ctx.strokeStyle = color;
@@ -226,7 +316,8 @@ export function DrawKick(ctx, player) {
     ctx.lineCap = "round";
 
     // Kick Y position — use player's legYOffset for hitbox alignment
-    const kickY = yOff(player.legYOffset);
+    const baseKickY = player.y + h - (h - player.legYOffset);
+    const kickY = baseKickY + crouchDrop;
 
     if (player.facing === "right") {
         // Non-kicking leg (left) — idle position
@@ -275,10 +366,15 @@ export function DrawFaceDirection(ctx, player) {
     const w = player.characterWidth;
     const h = player.characterHeight;
     const cx = player.x + w / 2;
+    const isCrouching = player.isCrouching;
 
-    const crouch = player.isCrouching ? 0.5 : 1;
-    const headCY = player.y + h - (h - STICK_HEAD_CENTER_Y) * crouch;
-    const headR = STICK_HEAD_RADIUS * crouch;
+    // Crouch offsets — same as DrawPlayer
+    const crouchDrop = isCrouching ? 38 : 0;
+    const torsoShrink = isCrouching ? 14 : 0;
+
+    const baseHeadCY = player.y + h - (h - STICK_HEAD_CENTER_Y);
+    const headCY = baseHeadCY + crouchDrop + torsoShrink;
+    const headR = STICK_HEAD_RADIUS; // head stays same size
 
     // Eye placement on the head
     const eyeR = 2.5;
@@ -340,7 +436,6 @@ export function DrawYou(ctx, player) {
     ctx.save();
 
     const w = player.characterWidth;
-    const h = player.characterHeight;
     const cx = player.x + w / 2;
 
     // "YOU" label above player
@@ -348,14 +443,6 @@ export function DrawYou(ctx, player) {
     ctx.font = "12px Arial";
     ctx.textAlign = "center";
     ctx.fillText("YOU", cx, player.y - 10);
-
-    // Dashed ellipse outline around the stick figure
-    ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
-    ctx.lineWidth = 2;
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.ellipse(cx, player.y + h / 2, w / 2 + 4, h / 2 + 4, 0, 0, Math.PI * 2);
-    ctx.stroke();
 
     ctx.restore();
 }

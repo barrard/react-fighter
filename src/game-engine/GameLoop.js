@@ -381,7 +381,8 @@ class GameLoop {
         }
 
         // Update y position based on height (use localPlayer's characterHeight)
-        newState.y = this.FLOOR_Y - localPlayer.characterHeight / (newState.isCrouching ? 2 : 1) - newState.height;
+        // Crouch is purely visual - doesn't affect physics y position
+        newState.y = this.FLOOR_Y - localPlayer.characterHeight - newState.height;
         if (newState.startJump) {
             newState.startJump = false;
             newState.isJumping = true;
