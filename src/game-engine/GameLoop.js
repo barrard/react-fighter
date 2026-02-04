@@ -171,18 +171,12 @@ class GameLoop {
                             otherPlayer.maxHealth = serverPlayer.maxHealth;
                         }
 
-                        // Preserve visual state
-                        const visualState = {
-                            color: otherPlayer.color,
-                            isPunching: otherPlayer.isPunching,
-                            isKicking: otherPlayer.isKicking,
-                        };
-
                         // Update other properties that don't need interpolation
                         otherPlayer.facing = serverPlayer.facing;
 
-                        // Restore visual state
-                        Object.assign(otherPlayer, visualState);
+                        // Update punch/kick state from server
+                        otherPlayer.isPunching = serverPlayer.isPunching || false;
+                        otherPlayer.isKicking = serverPlayer.isKicking || false;
                     }
                 }
             });
@@ -343,25 +337,25 @@ class GameLoop {
         const newState = { ...playerState };
 
         // Handle jumping
-        if (keysPressed.ArrowUp && !playerState.isJumping) {
+        if (keysPressed.jump && !playerState.isJumping) {
             newState.verticalVelocity = jumpVel;
             newState.startJump = true;
         }
 
         // Handle horizontal movement
         if (!newState.isJumping) {
-            if (keysPressed.ArrowLeft && !keysPressed.ArrowRight) {
+            if (keysPressed.left && !keysPressed.right) {
                 newState.horizontalVelocity = -moveSpeed;
-            } else if (keysPressed.ArrowRight && !keysPressed.ArrowLeft) {
+            } else if (keysPressed.right && !keysPressed.left) {
                 newState.horizontalVelocity = moveSpeed;
-            } else if (!keysPressed.ArrowRight && !keysPressed.ArrowLeft) {
+            } else if (!keysPressed.right && !keysPressed.left) {
                 newState.horizontalVelocity = 0;
-            } else if (keysPressed.ArrowRight && keysPressed.ArrowLeft) {
+            } else if (keysPressed.right && keysPressed.left) {
                 newState.horizontalVelocity = 0;
             }
-            if (keysPressed.ArrowDown && !newState.isCrouching) {
+            if (keysPressed.crouch && !newState.isCrouching) {
                 newState.isCrouching = true;
-            } else if (!keysPressed.ArrowDown) {
+            } else if (!keysPressed.crouch) {
                 newState.isCrouching = false;
             }
         }
@@ -432,14 +426,14 @@ class GameLoop {
         if (onGround) {
             const keysPressed = this.localInputs.keysPressed;
             // Direct ground control
-            if (keysPressed.ArrowLeft && !keysPressed.ArrowRight) {
+            if (keysPressed.left && !keysPressed.right) {
                 this.horizontalVelocity = -moveSpeed;
-            } else if (keysPressed.ArrowRight && !keysPressed.ArrowLeft) {
+            } else if (keysPressed.right && !keysPressed.left) {
                 this.horizontalVelocity = moveSpeed;
-            } else if (!keysPressed.ArrowRight && !keysPressed.ArrowLeft) {
+            } else if (!keysPressed.right && !keysPressed.left) {
                 this.horizontalVelocity = 0;
             }
-            if (keysPressed.ArrowUp) {
+            if (keysPressed.jump) {
                 // Apply jump if needed (only if on ground)
                 this.isJumping = true;
                 player.isJumping = this.isJumping;
@@ -448,11 +442,26 @@ class GameLoop {
             }
 
             //crouch
-            if (keysPressed.ArrowDown && !player.isCrouching) {
+            if (keysPressed.crouch && !player.isCrouching) {
                 player.isCrouching = true;
-            } else if (!keysPressed.ArrowDown) {
+            } else if (!keysPressed.crouch) {
                 player.isCrouching = false;
             }
+        }
+
+        // Local prediction for punch/kick animations
+        const keys = this.localInputs.keysPressed;
+        if (keys.punch && !player.isPunching && !player.isKicking) {
+            player.isPunching = true;
+            setTimeout(() => {
+                player.isPunching = false;
+            }, player.punchDuration || 200);
+        }
+        if (keys.kick && !player.isKicking && !player.isPunching) {
+            player.isKicking = true;
+            setTimeout(() => {
+                player.isKicking = false;
+            }, player.kickDuration || 300);
         }
 
         // Apply horizontal velocity with smoothing

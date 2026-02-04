@@ -56,71 +56,93 @@ export function DrawPlayer(ctx, player) {
 
     // Arms (idle) — skip when punching, DrawPunch handles both arms
     if (!player.isPunching) {
-        const armSpread = 15;
-        const armDrop = 16;
+        const armLength = 20; // total arm length
+        const upperArm = 10;  // shoulder to elbow
+        const forearm = 10;   // elbow to hand
 
         // Check if player is walking
-        // Local player: use horizontalVelocity
-        // Remote player: check if interpolation target differs from current position
         const hasVelocity = player.horizontalVelocity && player.horizontalVelocity !== 0;
         const isInterpolating = player.targetX !== undefined && Math.abs(player.targetX - player.x) > 0.5;
         const isWalking = (hasVelocity || isInterpolating) && !player.isJumping && !isCrouching;
 
         if (isWalking) {
-            // Walking animation — arms swing opposite to legs
-            // Slower animation: divide by 35 instead of 20 for longer strides
+            // Walking animation — arms swing with elbows
             const walkCycle = (player.x / 35) * Math.PI;
-            const armSwing = Math.sin(walkCycle) * 12; // arm swing amplitude
+            const armSwing = Math.sin(walkCycle) * 0.6; // swing angle in radians
 
-            // Left arm — swings with right leg (opposite to left leg)
-            const leftArmX = cx - armSpread - armSwing;
+            // Left arm
+            const leftElbowX = cx - 6 + Math.sin(armSwing) * upperArm;
+            const leftElbowY = shoulderY + Math.cos(armSwing) * upperArm;
+            const leftHandX = leftElbowX + Math.sin(armSwing + 0.3) * forearm;
+            const leftHandY = leftElbowY + Math.cos(armSwing + 0.3) * forearm;
             ctx.beginPath();
             ctx.moveTo(cx, shoulderY);
-            ctx.lineTo(leftArmX, shoulderY + armDrop);
+            ctx.lineTo(leftElbowX, leftElbowY);
+            ctx.lineTo(leftHandX, leftHandY);
             ctx.stroke();
 
-            // Right arm — swings with left leg (opposite to right leg)
-            const rightArmX = cx + armSpread + armSwing;
+            // Right arm — opposite phase
+            const rightElbowX = cx + 6 + Math.sin(-armSwing) * upperArm;
+            const rightElbowY = shoulderY + Math.cos(-armSwing) * upperArm;
+            const rightHandX = rightElbowX + Math.sin(-armSwing + 0.3) * forearm;
+            const rightHandY = rightElbowY + Math.cos(-armSwing + 0.3) * forearm;
             ctx.beginPath();
             ctx.moveTo(cx, shoulderY);
-            ctx.lineTo(rightArmX, shoulderY + armDrop);
+            ctx.lineTo(rightElbowX, rightElbowY);
+            ctx.lineTo(rightHandX, rightHandY);
             ctx.stroke();
         } else {
-            // Idle/crouch standing arms
-            // Left arm
+            // Idle/crouch standing arms with elbows
+            const elbowSpread = 10;
+            const elbowDrop = 10;
+            const handSpread = 6;
+            const handDrop = 18;
+
+            // Left arm — shoulder to elbow to hand
             ctx.beginPath();
             ctx.moveTo(cx, shoulderY);
-            ctx.lineTo(cx - armSpread, shoulderY + armDrop);
+            ctx.lineTo(cx - elbowSpread, shoulderY + elbowDrop);
+            ctx.lineTo(cx - handSpread, shoulderY + handDrop);
             ctx.stroke();
             // Right arm
             ctx.beginPath();
             ctx.moveTo(cx, shoulderY);
-            ctx.lineTo(cx + armSpread, shoulderY + armDrop);
+            ctx.lineTo(cx + elbowSpread, shoulderY + elbowDrop);
+            ctx.lineTo(cx + handSpread, shoulderY + handDrop);
             ctx.stroke();
         }
     }
 
     // Legs — skip when kicking, DrawKick handles both legs
     if (!player.isKicking) {
+        const legLength = footY - hipY;
+        const thighLength = legLength * 0.5;
+        const shinLength = legLength * 0.5;
+
         if (player.isJumping) {
-            // Tuck legs when jumping — knees bent inward
-            const tuckX = 10;
-            const tuckY = (hipY + footY) / 2; // knees at midpoint
+            // Tuck legs when jumping — knees bent inward and up
+            const kneeSpread = 8;
+            const kneeY = hipY + thighLength * 0.6;
+            const footTuck = 4;
+            const footY2 = kneeY + shinLength * 0.5;
+
             // Left leg tucked
             ctx.beginPath();
             ctx.moveTo(cx, hipY);
-            ctx.lineTo(cx - tuckX, tuckY);
+            ctx.lineTo(cx - kneeSpread, kneeY);
+            ctx.lineTo(cx - footTuck, footY2);
             ctx.stroke();
             // Right leg tucked
             ctx.beginPath();
             ctx.moveTo(cx, hipY);
-            ctx.lineTo(cx + tuckX, tuckY);
+            ctx.lineTo(cx + kneeSpread, kneeY);
+            ctx.lineTo(cx + footTuck, footY2);
             ctx.stroke();
         } else if (isCrouching) {
             // Crouching — bent knees, feet planted wide
-            const kneeSpread = 20; // knees go outward
-            const footSpread = 14; // feet slightly wider than normal
-            const kneeY = hipY + (footY - hipY) * 0.5; // knee at midpoint
+            const kneeSpread = 20;
+            const footSpread = 14;
+            const kneeY = hipY + (footY - hipY) * 0.5;
 
             // Left leg — hip to knee to foot
             ctx.beginPath();
@@ -137,44 +159,52 @@ export function DrawPlayer(ctx, player) {
             ctx.stroke();
         } else {
             // Check if player is walking
-            // Local player: use horizontalVelocity
-            // Remote player: check if interpolation target differs from current position
             const hasVelocity = player.horizontalVelocity && player.horizontalVelocity !== 0;
             const isInterpolating = player.targetX !== undefined && Math.abs(player.targetX - player.x) > 0.5;
             const isWalking = hasVelocity || isInterpolating;
-            const legSpread = 12;
+            const legSpread = 8;
 
             if (isWalking) {
-                // Walking animation — use x position to drive cycle
-                // Slower animation: full stride every ~70 pixels of movement
+                // Walking animation with knees
                 const walkCycle = (player.x / 35) * Math.PI;
-                const legSwing = Math.sin(walkCycle) * 18; // leg swing amplitude
+                const legSwing = Math.sin(walkCycle) * 0.5; // swing angle
 
-                // Left leg — swings opposite to right
-                const leftFootX = cx - legSpread + legSwing;
-                const leftFootY = footY - Math.abs(Math.sin(walkCycle)) * 8; // lift foot slightly
+                // Left leg
+                const leftKneeX = cx - 4 + Math.sin(legSwing) * thighLength * 0.3;
+                const leftKneeY = hipY + Math.cos(legSwing * 0.5) * thighLength;
+                const leftFootX = leftKneeX + Math.sin(legSwing * 0.8) * shinLength * 0.2;
+                const leftFootYCalc = leftKneeY + shinLength - Math.abs(Math.sin(walkCycle)) * 6;
                 ctx.beginPath();
                 ctx.moveTo(cx, hipY);
-                ctx.lineTo(leftFootX, leftFootY);
+                ctx.lineTo(leftKneeX, leftKneeY);
+                ctx.lineTo(leftFootX, Math.min(leftFootYCalc, footY));
                 ctx.stroke();
 
                 // Right leg — opposite phase
-                const rightFootX = cx + legSpread - legSwing;
-                const rightFootY = footY - Math.abs(Math.cos(walkCycle)) * 8; // lift foot slightly
+                const rightKneeX = cx + 4 + Math.sin(-legSwing) * thighLength * 0.3;
+                const rightKneeY = hipY + Math.cos(-legSwing * 0.5) * thighLength;
+                const rightFootX = rightKneeX + Math.sin(-legSwing * 0.8) * shinLength * 0.2;
+                const rightFootYCalc = rightKneeY + shinLength - Math.abs(Math.cos(walkCycle)) * 6;
                 ctx.beginPath();
                 ctx.moveTo(cx, hipY);
-                ctx.lineTo(rightFootX, rightFootY);
+                ctx.lineTo(rightKneeX, rightKneeY);
+                ctx.lineTo(rightFootX, Math.min(rightFootYCalc, footY));
                 ctx.stroke();
             } else {
-                // Standing legs — V-shape from hips to feet
+                // Standing legs with slight knee bend
+                const kneeY = hipY + thighLength;
+                const kneeBend = 3; // slight outward bend
+
                 // Left leg
                 ctx.beginPath();
                 ctx.moveTo(cx, hipY);
+                ctx.lineTo(cx - legSpread - kneeBend, kneeY);
                 ctx.lineTo(cx - legSpread, footY);
                 ctx.stroke();
                 // Right leg
                 ctx.beginPath();
                 ctx.moveTo(cx, hipY);
+                ctx.lineTo(cx + legSpread + kneeBend, kneeY);
                 ctx.lineTo(cx + legSpread, footY);
                 ctx.stroke();
             }
@@ -220,26 +250,34 @@ export function DrawPunch(ctx, player) {
 
     const baseShoulderY = player.y + h - (h - STICK_SHOULDER_Y);
     const shoulderY = baseShoulderY + crouchDrop + torsoShrink;
-    const armSpread = 15;
-    const armDrop = 16;
 
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
     ctx.lineWidth = STICK_LINE_WIDTH;
     ctx.lineCap = "round";
 
+    // Idle arm with elbow
+    const elbowSpread = 10;
+    const elbowDrop = 10;
+    const handSpread = 6;
+    const handDrop = 18;
+
     if (player.facing === "right") {
-        // Non-punching arm (left) — idle position
+        // Non-punching arm (left) — idle position with elbow
         ctx.beginPath();
         ctx.moveTo(cx, shoulderY);
-        ctx.lineTo(cx - armSpread, shoulderY + armDrop);
+        ctx.lineTo(cx - elbowSpread, shoulderY + elbowDrop);
+        ctx.lineTo(cx - handSpread, shoulderY + handDrop);
         ctx.stroke();
 
-        // Punching arm (right) — extends to hitbox endpoint
+        // Punching arm (right) — shoulder to elbow to fist
         const fistX = player.x + w + player.armWidth;
         const fistY = shoulderY;
+        const elbowX = cx + (fistX - cx) * 0.4;
+        const elbowY = shoulderY + 4; // elbow slightly below shoulder line
         ctx.beginPath();
         ctx.moveTo(cx, shoulderY);
+        ctx.lineTo(elbowX, elbowY);
         ctx.lineTo(fistX, fistY);
         ctx.stroke();
 
@@ -248,17 +286,21 @@ export function DrawPunch(ctx, player) {
         ctx.arc(fistX, fistY, 4, 0, Math.PI * 2);
         ctx.fill();
     } else {
-        // Non-punching arm (right) — idle position
+        // Non-punching arm (right) — idle position with elbow
         ctx.beginPath();
         ctx.moveTo(cx, shoulderY);
-        ctx.lineTo(cx + armSpread, shoulderY + armDrop);
+        ctx.lineTo(cx + elbowSpread, shoulderY + elbowDrop);
+        ctx.lineTo(cx + handSpread, shoulderY + handDrop);
         ctx.stroke();
 
-        // Punching arm (left) — extends to hitbox endpoint
+        // Punching arm (left) — shoulder to elbow to fist
         const fistX = player.x - player.armWidth;
         const fistY = shoulderY;
+        const elbowX = cx - (cx - fistX) * 0.4;
+        const elbowY = shoulderY + 4;
         ctx.beginPath();
         ctx.moveTo(cx, shoulderY);
+        ctx.lineTo(elbowX, elbowY);
         ctx.lineTo(fistX, fistY);
         ctx.stroke();
 
@@ -307,8 +349,11 @@ export function DrawKick(ctx, player) {
     const baseHipY = player.y + h - (h - STICK_HIP_Y);
     const baseFootY = player.y + h - (h - STICK_FOOT_Y);
     const hipY = baseHipY + crouchDrop;
-    const footY = baseFootY; // feet stay planted
-    const legSpread = 12;
+    const footY = baseFootY;
+    const legSpread = 8;
+
+    const legLength = footY - hipY;
+    const thighLength = legLength * 0.5;
 
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
@@ -320,16 +365,22 @@ export function DrawKick(ctx, player) {
     const kickY = baseKickY + crouchDrop;
 
     if (player.facing === "right") {
-        // Non-kicking leg (left) — idle position
+        // Non-kicking leg (left) — with knee
+        const kneeY = hipY + thighLength;
+        const kneeBend = 3;
         ctx.beginPath();
         ctx.moveTo(cx, hipY);
+        ctx.lineTo(cx - legSpread - kneeBend, kneeY);
         ctx.lineTo(cx - legSpread, footY);
         ctx.stroke();
 
-        // Kicking leg (right) — extends to hitbox endpoint
+        // Kicking leg (right) — hip to knee to foot
         const footEndX = player.x + w + player.legWidth;
+        const kneeX = cx + (footEndX - cx) * 0.35;
+        const kneeKickY = hipY + 8; // knee raised and bent
         ctx.beginPath();
         ctx.moveTo(cx, hipY);
+        ctx.lineTo(kneeX, kneeKickY);
         ctx.lineTo(footEndX, kickY);
         ctx.stroke();
 
@@ -338,16 +389,22 @@ export function DrawKick(ctx, player) {
         ctx.arc(footEndX, kickY, 4, 0, Math.PI * 2);
         ctx.fill();
     } else {
-        // Non-kicking leg (right) — idle position
+        // Non-kicking leg (right) — with knee
+        const kneeY = hipY + thighLength;
+        const kneeBend = 3;
         ctx.beginPath();
         ctx.moveTo(cx, hipY);
+        ctx.lineTo(cx + legSpread + kneeBend, kneeY);
         ctx.lineTo(cx + legSpread, footY);
         ctx.stroke();
 
-        // Kicking leg (left) — extends to hitbox endpoint
+        // Kicking leg (left) — hip to knee to foot
         const footEndX = player.x - player.legWidth;
+        const kneeX = cx - (cx - footEndX) * 0.35;
+        const kneeKickY = hipY + 8;
         ctx.beginPath();
         ctx.moveTo(cx, hipY);
+        ctx.lineTo(kneeX, kneeKickY);
         ctx.lineTo(footEndX, kickY);
         ctx.stroke();
 

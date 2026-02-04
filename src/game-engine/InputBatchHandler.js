@@ -2,6 +2,17 @@
 import { encodeInputMask } from "@shared/inputFlags.js";
 import { BASE_STATS } from "@shared/Characters.js";
 
+// Key -> Action mapping (easy to customize)
+const KEY_MAP = {
+    ArrowLeft: "left",
+    ArrowRight: "right",
+    ArrowUp: "jump",
+    ArrowDown: "crouch",
+    Space: "jump",
+    KeyZ: "punch",
+    KeyX: "kick",
+};
+
 export default class InputBatchHandler {
     constructor(socket) {
         this.socket = socket;
@@ -75,13 +86,14 @@ export default class InputBatchHandler {
 
     setDefaultInputState() {
         this.stateChanged = false;
+        // Track actions, not key codes
         this.keysPressed = {
-            ArrowLeft: false,
-            ArrowRight: false,
-            ArrowUp: false,
-            ArrowDown: false,
-            KeyP: false,
-            KeyK: false,
+            left: false,
+            right: false,
+            jump: false,
+            crouch: false,
+            punch: false,
+            kick: false,
         };
     }
 
@@ -94,18 +106,18 @@ export default class InputBatchHandler {
     setupEventListeners() {
         // Handle keydown events
         window.addEventListener("keydown", (e) => {
-            const keyCode = e.code;
-            if (keyCode in this.keysPressed) {
-                this.keysPressed[keyCode] = true;
-                this.handleKeysPressed(keyCode);
+            const action = KEY_MAP[e.code];
+            if (action) {
+                if (action === "jump") e.preventDefault(); // Prevent page scroll
+                this.handleActionDown(action);
             }
         });
 
         // Handle keyup events
         window.addEventListener("keyup", (e) => {
-            const keyCode = e.code;
-            if (keyCode in this.keysPressed && this.keysPressed[keyCode]) {
-                this.keysPressed[keyCode] = false;
+            const action = KEY_MAP[e.code];
+            if (action) {
+                this.handleActionUp(action);
             }
         });
     }
@@ -135,32 +147,34 @@ export default class InputBatchHandler {
         this.socket.on("latencyAck", this.latencyAckHandler);
     }
 
-    handleKeysPressed(keyCode) {
-        if (keyCode === "ArrowLeft") {
-            this.keysPressed.ArrowLeft = true;
-        } else if (keyCode === "ArrowRight") {
-            this.keysPressed.ArrowRight = true;
+    handleActionDown(action) {
+        // Movement and jump are held
+        if (action === "left" || action === "right" || action === "jump" || action === "crouch") {
+            this.keysPressed[action] = true;
+            return;
         }
 
-        // Handle jump
-        if (keyCode === "ArrowUp") {
-            this.keysPressed.ArrowUp = true;
-        }
-
-        // Handle punch
-        if (keyCode === "KeyP") {
-            this.keysPressed.KeyP = true;
+        // Punch - auto-release after duration
+        if (action === "punch" && !this.keysPressed.punch && !this.keysPressed.kick) {
+            this.keysPressed.punch = true;
             setTimeout(() => {
-                this.keysPressed.KeyP = false;
+                this.keysPressed.punch = false;
             }, this.PUNCH_DURATION);
         }
 
-        // Handle kick
-        if (keyCode === "KeyK" && !this.isKicking && !this.isPunching) {
-            this.keysPressed.KeyK = true;
+        // Kick - auto-release after duration
+        if (action === "kick" && !this.keysPressed.kick && !this.keysPressed.punch) {
+            this.keysPressed.kick = true;
             setTimeout(() => {
-                this.keysPressed.KeyK = false;
+                this.keysPressed.kick = false;
             }, this.KICK_DURATION);
+        }
+    }
+
+    handleActionUp(action) {
+        // Only release held actions (not punch/kick which auto-release)
+        if (action === "left" || action === "right" || action === "jump" || action === "crouch") {
+            this.keysPressed[action] = false;
         }
     }
 

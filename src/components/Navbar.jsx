@@ -15,6 +15,12 @@ export default function Navbar() {
                     <Swords className="h-6 w-6 text-primary" />
                     <span className="text-xl font-bold">Fighter Arena</span>
                 </Link>
+                <Link to="/training-grounds" className="flex items-center gap-2">
+                    <span className="text-xl font-bold">Training Grounds</span>
+                </Link>
+                <Link to="/animation-test" className="flex items-center gap-2">
+                    <span className="text-xl font-bold">Animation Test</span>
+                </Link>
 
                 {error && (
                     <div className="flex items-center gap-4">

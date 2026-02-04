@@ -151,7 +151,7 @@ const PlayerSelectionUI = ({ playerTitle, selectedCharacter, isCurrentUser, onCo
 };
 
 // Main Exported Component
-export default function CharacterSelect({ player1, player2, role }) {
+export default function CharacterSelect({ player1, player2, role, isTrainingMode = false }) {
     const { socket } = useSocket();
     const [characters, setCharacters] = useState(null);
     const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
@@ -188,16 +188,20 @@ export default function CharacterSelect({ player1, player2, role }) {
                 characters={characters}
             />
 
-            <div className="self-center text-5xl font-bold p-4">VS</div>
+            {!isTrainingMode && (
+                <>
+                    <div className="self-center text-5xl font-bold p-4">VS</div>
 
-            <PlayerSelectionUI
-                playerTitle="Player 2"
-                selectedCharacter={player2?.character || (isSpectator && player2?.previewCharacter)}
-                isCurrentUser={isPlayer2}
-                onConfirm={handleConfirmSelection}
-                isLockedIn={!!player2?.character?.name} // Is locked in if character data is present
-                characters={characters}
-            />
+                    <PlayerSelectionUI
+                        playerTitle="Player 2"
+                        selectedCharacter={player2?.character || (isSpectator && player2?.previewCharacter)}
+                        isCurrentUser={isPlayer2}
+                        onConfirm={handleConfirmSelection}
+                        isLockedIn={!!player2?.character?.name} // Is locked in if character data is present
+                        characters={characters}
+                    />
+                </>
+            )}
         </div>
     );
 }

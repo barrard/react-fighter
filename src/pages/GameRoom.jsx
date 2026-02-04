@@ -1,6 +1,6 @@
 // src/pages/GameRoom.jsx
 import { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useSocket } from "../context/SocketContext";
 // import { useOutletContext } from "react-router-dom"; // This seems unused now
 
@@ -16,6 +16,7 @@ import CONSTS from "../game-engine/contants.js"; // Import game constants
 export default function GameRoom() {
     const { roomId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const { socket, username, error } = useSocket();
 
     const [roomState, setRoomState] = useState("verifying"); // verifying, verified, fighting, finished
@@ -330,10 +331,15 @@ export default function GameRoom() {
     }, [roomId, socket]); // Dependencies for setup
 
     useEffect(() => {
-        if (!player1?.character || !player2?.character) return;
-        if (roomState !== "verified") return;
-        setRoomState("fighting");
-    }, [player1, player2, roomState]);
+        const isTraining = roomId && roomId.startsWith("training-");
+        if (
+            (player1?.character && player2?.character) ||
+            (isTraining && player1?.character)
+        ) {
+            if (roomState !== "verified") return;
+            setRoomState("fighting");
+        }
+    }, [player1, player2, roomState, roomId]);
 
     function leaveRoom() {
         socket.emit("leaveRoom", roomId);
@@ -386,7 +392,12 @@ export default function GameRoom() {
 
                 {/* STATE 2: CHARACTER SELECT */}
                 {roomState === "verified" && (
-                    <CharacterSelect player1={player1} player2={player2} role={roomVerified} />
+                    <CharacterSelect
+                        player1={player1}
+                        player2={player2}
+                        role={roomVerified}
+                        isTrainingMode={roomId && roomId.startsWith("training-")}
+                    />
                 )}
 
                 {/* STATE 3: THE FIGHT! */}
