@@ -1,11 +1,12 @@
 // import CONSTS from "/js/contants.js";
 import CONSTS from "./contants.js";
 import { decodeGameStatePayload } from "@shared/stateCodec.js";
+import { ATTACK_TYPES, isPunch, isKick, getAttackTypeName } from "@shared/attackTypes.js";
+import { BASE_STATS } from "@shared/Characters.js";
 import {
     DrawPlayer,
     DrawHealthBar,
-    DrawPunch,
-    DrawKick,
+    DrawAttack,
     DrawFaceDirection,
     DrawYou,
     DrawFloor,
@@ -174,9 +175,10 @@ class GameLoop {
                         // Update other properties that don't need interpolation
                         otherPlayer.facing = serverPlayer.facing;
 
-                        // Update punch/kick state from server
+                        // Update attack state from server
                         otherPlayer.isPunching = serverPlayer.isPunching || false;
                         otherPlayer.isKicking = serverPlayer.isKicking || false;
+                        otherPlayer.currentAttackType = serverPlayer.currentAttackType || ATTACK_TYPES.NONE;
                     }
                 }
             });
@@ -449,19 +451,23 @@ class GameLoop {
             }
         }
 
-        // Local prediction for punch/kick animations
+        // Local prediction for directional attack animations
         const keys = this.localInputs.keysPressed;
-        if (keys.punch && !player.isPunching && !player.isKicking) {
-            player.isPunching = true;
+        const attackType = keys.attackType || ATTACK_TYPES.NONE;
+        if (attackType !== ATTACK_TYPES.NONE && !player.currentAttackType) {
+            const typeName = getAttackTypeName(attackType);
+            const attackStats = BASE_STATS.attacks[typeName];
+            const duration = attackStats?.duration || (isPunch(attackType) ? player.punchDuration : player.kickDuration) || 300;
+
+            player.currentAttackType = attackType;
+            player.isPunching = isPunch(attackType);
+            player.isKicking = isKick(attackType);
+
             setTimeout(() => {
+                player.currentAttackType = ATTACK_TYPES.NONE;
                 player.isPunching = false;
-            }, player.punchDuration || 200);
-        }
-        if (keys.kick && !player.isKicking && !player.isPunching) {
-            player.isKicking = true;
-            setTimeout(() => {
                 player.isKicking = false;
-            }, player.kickDuration || 300);
+            }, duration);
         }
 
         // Apply horizontal velocity with smoothing
@@ -535,13 +541,44 @@ class GameLoop {
             this.pendingServerState = null;
         }
 
+        const now = performance.now();
+
+        // Update any round-end animation timers
+        this.allPlayers.forEach((player) => {
+            if (!player) return;
+            const animation = player.roundAnimation;
+            if (!animation) {
+                player.isCelebrating = false;
+                player.isKnockedDown = false;
+                player.roundAnimationElapsed = 0;
+                return;
+            }
+            if (animation.startTime == null) {
+                animation.startTime = now;
+            }
+            if (animation.duration && !animation.expiresAt) {
+                animation.expiresAt = animation.startTime + animation.duration;
+            }
+            const elapsed = Math.max(0, now - (animation.startTime || now));
+            const expiresAt = animation.expiresAt;
+            if (expiresAt && now >= expiresAt) {
+                player.roundAnimation = null;
+                player.isCelebrating = false;
+                player.isKnockedDown = false;
+                player.roundAnimationElapsed = 0;
+                return;
+            }
+            player.roundAnimationElapsed = elapsed;
+            player.isCelebrating = animation.type === "celebrate";
+            player.isKnockedDown = animation.type === "knockdown";
+        });
+
         // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
         // Interpolate remote players between their last two server snapshots
         // Server sends updates every 3 ticks at 60Hz = every 50ms
         const SNAPSHOT_INTERVAL_MS = (3 / this.SERVER_TICK_RATE) * 1000;
-        const now = performance.now();
         this.allPlayers.forEach((localPlayer) => {
             localPlayer.currentFrame = this.frame;
             if (localPlayer.id !== this.localPlayerId && localPlayer.snapshotTime !== undefined) {
@@ -566,19 +603,20 @@ class GameLoop {
         // Draw all players
         this.allPlayers.forEach((player) => {
             // Draw player rectangle
-            DrawPlayer(this.ctx, player);
+            DrawPlayer(this.ctx, player, now);
             DrawHealthBar(this.ctx, player);
 
-            // Draw punching animation (arm extension)
-            if (player.isPunching || (player.id === this.localPlayerId && this.isPunching)) {
-                DrawPunch(this.ctx, player);
+            // Draw attack animations (directional punch/kick)
+            const attackType = player.currentAttackType || ATTACK_TYPES.NONE;
+            const hasRoundAnimation = Boolean(player.roundAnimation);
+            if (
+                !hasRoundAnimation &&
+                (attackType !== ATTACK_TYPES.NONE || player.isPunching || player.isKicking)
+            ) {
+                DrawAttack(this.ctx, player);
             }
 
-            // Draw kicking animation (leg extension)
-            if (player.isKicking || (player.id === this.localPlayerId && this.isKicking)) {
-                DrawKick(this.ctx, player);
-            }
-            // Draw direction indicator (triangle pointing in the facing direction)
+            // Draw direction indicator (eyes on head)
             DrawFaceDirection(this.ctx, player);
 
             // Highlight current player

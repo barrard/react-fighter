@@ -1,4 +1,5 @@
 import CONSTS from "./contants.js";
+import { ATTACK_TYPES, isPunch, isKick } from "@shared/attackTypes.js";
 
 const {
     FLOOR_HEIGHT,
@@ -11,14 +12,18 @@ const {
     STICK_LINE_WIDTH,
 } = CONSTS;
 
-export function DrawPlayer(ctx, player) {
+export function DrawPlayer(ctx, player, timestamp = (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now())) {
     ctx.save();
 
     const w = player.characterWidth;
     const h = player.characterHeight;
     const cx = player.x + w / 2;
     const color = player.color;
-    const isCrouching = player.isCrouching;
+    const isCelebrating = Boolean(player.isCelebrating);
+    const isKnockedDown = Boolean(player.isKnockedDown);
+    const isCrouching = isCelebrating ? false : player.isCrouching;
+    const animationElapsed = player.roundAnimationElapsed ??
+        (player.roundAnimation ? Math.max(0, timestamp - (player.roundAnimation.startTime || timestamp)) : 0);
 
     // Base positions (standing)
     const baseFootY = player.y + h - (h - STICK_FOOT_Y);
@@ -27,16 +32,32 @@ export function DrawPlayer(ctx, player) {
     const baseNeckY = player.y + h - (h - STICK_NECK_Y);
     const baseHeadCY = player.y + h - (h - STICK_HEAD_CENTER_Y);
 
+    // Celebration bounce (small jumps)
+    const celebrationPhase = animationElapsed / 220;
+    const celebrationBounce = isCelebrating ? Math.abs(Math.sin(celebrationPhase * Math.PI)) * 12 : 0;
+    const celebrationSway = isCelebrating ? Math.sin(celebrationPhase * Math.PI * 2) * 6 : 0;
+
     // Crouch offsets — lower the upper body, keep feet planted
     const crouchDrop = isCrouching ? 38 : 0; // how much the hips drop
     const torsoShrink = isCrouching ? 14 : 0; // torso/neck shortens
 
-    const footY = baseFootY; // feet stay planted
-    const hipY = baseHipY + crouchDrop;
-    const shoulderY = baseShoulderY + crouchDrop + torsoShrink;
-    const neckY = baseNeckY + crouchDrop + torsoShrink;
-    const headCY = baseHeadCY + crouchDrop + torsoShrink;
+    const bounceOffset = isCelebrating ? celebrationBounce : 0;
+    const footY = baseFootY - bounceOffset; // feet lift when celebrating
+    const hipY = baseHipY + crouchDrop - bounceOffset;
+    const shoulderY = baseShoulderY + crouchDrop + torsoShrink - bounceOffset;
+    const neckY = baseNeckY + crouchDrop + torsoShrink - bounceOffset;
+    const headCY = baseHeadCY + crouchDrop + torsoShrink - bounceOffset;
     const headR = STICK_HEAD_RADIUS; // head stays same size
+
+    if (isKnockedDown) {
+        const fallProgress = Math.min(1, animationElapsed / 500);
+        const easedFall = Math.sin((fallProgress * Math.PI) / 2);
+        const direction = player.facing === "left" ? -1 : 1;
+        const fallAngle = easedFall * (Math.PI / 2) * direction;
+        ctx.translate(cx, baseFootY);
+        ctx.rotate(fallAngle);
+        ctx.translate(-cx, -baseFootY);
+    }
 
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
@@ -63,9 +84,25 @@ export function DrawPlayer(ctx, player) {
         // Check if player is walking
         const hasVelocity = player.horizontalVelocity && player.horizontalVelocity !== 0;
         const isInterpolating = player.targetX !== undefined && Math.abs(player.targetX - player.x) > 0.5;
-        const isWalking = (hasVelocity || isInterpolating) && !player.isJumping && !isCrouching;
+        const isWalking = (hasVelocity || isInterpolating) && !player.isJumping && !isCrouching && !isCelebrating && !isKnockedDown;
 
-        if (isWalking) {
+        if (isCelebrating) {
+            const raiseLength = 26;
+            const swayOffset = celebrationSway * 0.2;
+            // Left arm raised
+            ctx.beginPath();
+            ctx.moveTo(cx, shoulderY);
+            ctx.lineTo(cx - 8 - swayOffset, shoulderY - raiseLength * 0.6);
+            ctx.lineTo(cx - 8 - celebrationSway * 0.3, shoulderY - raiseLength);
+            ctx.stroke();
+
+            // Right arm raised
+            ctx.beginPath();
+            ctx.moveTo(cx, shoulderY);
+            ctx.lineTo(cx + 8 + swayOffset, shoulderY - raiseLength * 0.6);
+            ctx.lineTo(cx + 8 + celebrationSway * 0.3, shoulderY - raiseLength);
+            ctx.stroke();
+        } else if (isWalking) {
             // Walking animation — arms swing with elbows
             const walkCycle = (player.x / 35) * Math.PI;
             const armSwing = Math.sin(walkCycle) * 0.6; // swing angle in radians
@@ -118,8 +155,26 @@ export function DrawPlayer(ctx, player) {
         const legLength = footY - hipY;
         const thighLength = legLength * 0.5;
         const shinLength = legLength * 0.5;
+        const hopPhase = Math.sin((animationElapsed / 200) * Math.PI * 2);
 
-        if (player.isJumping) {
+        if (isCelebrating) {
+            // Slight bend while hopping
+            const stanceWidth = 14;
+            const kneeLift = Math.max(0, hopPhase) * 6;
+            const kneeY = hipY + thighLength * 0.7 - kneeLift;
+
+            ctx.beginPath();
+            ctx.moveTo(cx, hipY);
+            ctx.lineTo(cx - stanceWidth, kneeY);
+            ctx.lineTo(cx - stanceWidth, footY);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(cx, hipY);
+            ctx.lineTo(cx + stanceWidth, kneeY);
+            ctx.lineTo(cx + stanceWidth, footY);
+            ctx.stroke();
+        } else if (player.isJumping) {
             // Tuck legs when jumping — knees bent inward and up
             const kneeSpread = 8;
             const kneeY = hipY + thighLength * 0.6;
@@ -235,7 +290,26 @@ export function DrawHealthBar(ctx, player) {
     ctx.strokeRect(x, y, w, barHeight);
 }
 
-export function DrawPunch(ctx, player) {
+// Dispatches to the correct directional punch or kick based on currentAttackType
+export function DrawAttack(ctx, player) {
+    const attackType = player.currentAttackType || ATTACK_TYPES.NONE;
+
+    // Determine which attack to draw
+    if (isPunch(attackType)) {
+        DrawDirectionalPunch(ctx, player, attackType);
+    } else if (isKick(attackType)) {
+        DrawDirectionalKick(ctx, player, attackType);
+    } else if (player.isPunching) {
+        // Legacy fallback
+        DrawDirectionalPunch(ctx, player, ATTACK_TYPES.MID_PUNCH);
+    } else if (player.isKicking) {
+        // Legacy fallback
+        DrawDirectionalKick(ctx, player, ATTACK_TYPES.MID_KICK);
+    }
+}
+
+// Draw directional punch with angle based on high/mid/low
+export function DrawDirectionalPunch(ctx, player, attackType) {
     ctx.save();
 
     const w = player.characterWidth;
@@ -262,6 +336,17 @@ export function DrawPunch(ctx, player) {
     const handSpread = 6;
     const handDrop = 18;
 
+    // Determine punch angle based on attack type
+    // HIGH_PUNCH: angle up (-15 degrees), MID_PUNCH: straight (0), LOW_PUNCH: angle down (+20 degrees)
+    let punchAngle = 0;
+    if (attackType === ATTACK_TYPES.HIGH_PUNCH) {
+        punchAngle = -0.25; // ~15 degrees up
+    } else if (attackType === ATTACK_TYPES.LOW_PUNCH) {
+        punchAngle = 0.35; // ~20 degrees down
+    }
+
+    const armLength = player.armWidth || 30;
+
     if (player.facing === "right") {
         // Non-punching arm (left) — idle position with elbow
         ctx.beginPath();
@@ -270,11 +355,11 @@ export function DrawPunch(ctx, player) {
         ctx.lineTo(cx - handSpread, shoulderY + handDrop);
         ctx.stroke();
 
-        // Punching arm (right) — shoulder to elbow to fist
-        const fistX = player.x + w + player.armWidth;
-        const fistY = shoulderY;
+        // Punching arm (right) — angled based on attack type
+        const fistX = player.x + w + Math.cos(punchAngle) * armLength;
+        const fistY = shoulderY + Math.sin(punchAngle) * armLength;
         const elbowX = cx + (fistX - cx) * 0.4;
-        const elbowY = shoulderY + 4; // elbow slightly below shoulder line
+        const elbowY = shoulderY + (fistY - shoulderY) * 0.4 + 4;
         ctx.beginPath();
         ctx.moveTo(cx, shoulderY);
         ctx.lineTo(elbowX, elbowY);
@@ -293,11 +378,11 @@ export function DrawPunch(ctx, player) {
         ctx.lineTo(cx + handSpread, shoulderY + handDrop);
         ctx.stroke();
 
-        // Punching arm (left) — shoulder to elbow to fist
-        const fistX = player.x - player.armWidth;
-        const fistY = shoulderY;
+        // Punching arm (left) — angled based on attack type
+        const fistX = player.x - Math.cos(punchAngle) * armLength;
+        const fistY = shoulderY + Math.sin(punchAngle) * armLength;
         const elbowX = cx - (cx - fistX) * 0.4;
-        const elbowY = shoulderY + 4;
+        const elbowY = shoulderY + (fistY - shoulderY) * 0.4 + 4;
         ctx.beginPath();
         ctx.moveTo(cx, shoulderY);
         ctx.lineTo(elbowX, elbowY);
@@ -311,6 +396,11 @@ export function DrawPunch(ctx, player) {
     }
 
     ctx.restore();
+}
+
+// Legacy DrawPunch - now uses DrawDirectionalPunch with MID_PUNCH
+export function DrawPunch(ctx, player) {
+    DrawDirectionalPunch(ctx, player, player.currentAttackType || ATTACK_TYPES.MID_PUNCH);
 }
 
 export function DrawInitialScene(canvas, ctx) {
@@ -334,7 +424,8 @@ export function DrawInitialScene(canvas, ctx) {
     ctx.fillText("Connecting to server...", canvas.width / 2, canvas.height / 2);
 }
 
-export function DrawKick(ctx, player) {
+// Draw directional kick with angle based on high/mid/low
+export function DrawDirectionalKick(ctx, player, attackType) {
     ctx.save();
 
     const w = player.characterWidth;
@@ -360,8 +451,27 @@ export function DrawKick(ctx, player) {
     ctx.lineWidth = STICK_LINE_WIDTH;
     ctx.lineCap = "round";
 
-    // Kick Y position — use player's legYOffset for hitbox alignment
-    const baseKickY = player.y + h - (h - player.legYOffset);
+    // Determine kick angle and Y offset based on attack type
+    // HIGH_KICK: angle up, MID_KICK: horizontal, LOW_KICK: angle down (sweep)
+    let kickAngle = 0;
+    let kickYOffset = player.legYOffset || 70;
+
+    if (attackType === ATTACK_TYPES.HIGH_KICK) {
+        kickAngle = -0.4; // ~23 degrees up
+        kickYOffset = 10; // Higher kick target
+    } else if (attackType === ATTACK_TYPES.LOW_KICK) {
+        kickAngle = 0.3; // ~17 degrees down
+        kickYOffset = 85; // Lower sweep
+    } else {
+        // MID_KICK
+        kickAngle = 0;
+        kickYOffset = 50;
+    }
+
+    const legWidth = player.legWidth || 35;
+
+    // Calculate kick Y position
+    const baseKickY = player.y + h - (h - kickYOffset);
     const kickY = baseKickY + crouchDrop;
 
     if (player.facing === "right") {
@@ -374,19 +484,20 @@ export function DrawKick(ctx, player) {
         ctx.lineTo(cx - legSpread, footY);
         ctx.stroke();
 
-        // Kicking leg (right) — hip to knee to foot
-        const footEndX = player.x + w + player.legWidth;
+        // Kicking leg (right) — angled based on attack type
+        const footEndX = player.x + w + Math.cos(kickAngle) * legWidth;
+        const footEndY = kickY + Math.sin(kickAngle) * legWidth;
         const kneeX = cx + (footEndX - cx) * 0.35;
-        const kneeKickY = hipY + 8; // knee raised and bent
+        const kneeKickY = hipY + 8 + (kickAngle < 0 ? -5 : kickAngle > 0 ? 10 : 0);
         ctx.beginPath();
         ctx.moveTo(cx, hipY);
         ctx.lineTo(kneeX, kneeKickY);
-        ctx.lineTo(footEndX, kickY);
+        ctx.lineTo(footEndX, footEndY);
         ctx.stroke();
 
         // Foot circle
         ctx.beginPath();
-        ctx.arc(footEndX, kickY, 4, 0, Math.PI * 2);
+        ctx.arc(footEndX, footEndY, 4, 0, Math.PI * 2);
         ctx.fill();
     } else {
         // Non-kicking leg (right) — with knee
@@ -398,23 +509,29 @@ export function DrawKick(ctx, player) {
         ctx.lineTo(cx + legSpread, footY);
         ctx.stroke();
 
-        // Kicking leg (left) — hip to knee to foot
-        const footEndX = player.x - player.legWidth;
+        // Kicking leg (left) — angled based on attack type
+        const footEndX = player.x - Math.cos(kickAngle) * legWidth;
+        const footEndY = kickY + Math.sin(kickAngle) * legWidth;
         const kneeX = cx - (cx - footEndX) * 0.35;
-        const kneeKickY = hipY + 8;
+        const kneeKickY = hipY + 8 + (kickAngle < 0 ? -5 : kickAngle > 0 ? 10 : 0);
         ctx.beginPath();
         ctx.moveTo(cx, hipY);
         ctx.lineTo(kneeX, kneeKickY);
-        ctx.lineTo(footEndX, kickY);
+        ctx.lineTo(footEndX, footEndY);
         ctx.stroke();
 
         // Foot circle
         ctx.beginPath();
-        ctx.arc(footEndX, kickY, 4, 0, Math.PI * 2);
+        ctx.arc(footEndX, footEndY, 4, 0, Math.PI * 2);
         ctx.fill();
     }
 
     ctx.restore();
+}
+
+// Legacy DrawKick - now uses DrawDirectionalKick with MID_KICK
+export function DrawKick(ctx, player) {
+    DrawDirectionalKick(ctx, player, player.currentAttackType || ATTACK_TYPES.MID_KICK);
 }
 
 export function DrawFaceDirection(ctx, player) {

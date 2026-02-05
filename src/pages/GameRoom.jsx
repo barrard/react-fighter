@@ -13,6 +13,17 @@ import { Timer, ArrowLeft, Heart, Swords } from "lucide-react"; // Added icons
 import CharacterSelect from "@/components/CharacterSelect.jsx"; // Your NEW CharacterSelect component
 import FightCanvas from "@/components/FightCanvas.jsx"; // Import the new component
 import CONSTS from "../game-engine/contants.js"; // Import game constants
+import { ATTACK_TYPES } from "@shared/attackTypes.js";
+
+const ROUND_RESULT_ANIMATION_DURATION = 1700;
+const ROUND_RESET_DELAY_MS = 1700;
+const nowMs = () => {
+    if (typeof performance !== "undefined" && typeof performance.now === "function") {
+        return performance.now();
+    }
+    return Date.now();
+};
+
 export default function GameRoom() {
     const { roomId } = useParams();
     const navigate = useNavigate();
@@ -39,7 +50,82 @@ export default function GameRoom() {
     const countdownTimerRef = useRef(null);
     const countdownHoldRef = useRef(null);
     const roundEndCleanupRef = useRef(null);
+    const roundReadyDelayRef = useRef(null);
     const [roundPrepared, setRoundPrepared] = useState(false);
+
+    const clearRoundResultAnimations = () => {
+        allPlayers.current.forEach((player) => {
+            if (!player) return;
+            delete player.roundAnimation;
+            player.isCelebrating = false;
+            player.isKnockedDown = false;
+            player.roundAnimationElapsed = 0;
+        });
+    };
+
+    const triggerRoundResultAnimations = (winnerId, payloadPlayers = []) => {
+        clearRoundResultAnimations();
+        if (!winnerId) return;
+        const targetIds = Array.isArray(payloadPlayers) && payloadPlayers.length > 0
+            ? new Set(payloadPlayers.map((p) => p.id).filter(Boolean))
+            : null;
+        const startedAt = nowMs();
+        allPlayers.current.forEach((player) => {
+            if (!player) return;
+            if (targetIds && !targetIds.has(player.id)) return;
+            const type = player.id === winnerId ? "celebrate" : "knockdown";
+            player.roundAnimation = {
+                type,
+                startTime: startedAt,
+                duration: ROUND_RESULT_ANIMATION_DURATION,
+                expiresAt: startedAt + ROUND_RESULT_ANIMATION_DURATION,
+            };
+            player.roundAnimationElapsed = 0;
+            player.isCelebrating = type === "celebrate";
+            player.isKnockedDown = type === "knockdown";
+            player.currentAttackType = ATTACK_TYPES.NONE;
+            player.isPunching = false;
+            player.isKicking = false;
+            player.isCrouching = false;
+            player.isJumping = false;
+        });
+    };
+
+    const scheduleClientReady = (delayMs = 0) => {
+        if (roundReadyDelayRef.current) {
+            clearTimeout(roundReadyDelayRef.current);
+            roundReadyDelayRef.current = null;
+        }
+        if (readyRetryTimerRef.current) {
+            clearInterval(readyRetryTimerRef.current);
+            readyRetryTimerRef.current = null;
+        }
+        const emitReady = () => {
+            if (!socket || roomStateRef.current === "finished") return;
+            console.log("GameRoom: clientReady emitted (round reset)");
+            socket.emit("clientReady");
+            readyRetryTimerRef.current = setInterval(() => {
+                if (!socket || roomStateRef.current === "finished") {
+                    clearInterval(readyRetryTimerRef.current);
+                    readyRetryTimerRef.current = null;
+                    return;
+                }
+                console.log("GameRoom: clientReady retry");
+                socket.emit("clientReady");
+            }, 1000);
+        };
+
+        if (delayMs <= 0) {
+            emitReady();
+            return;
+        }
+
+        roundReadyDelayRef.current = setTimeout(() => {
+            emitReady();
+            roundReadyDelayRef.current = null;
+        }, delayMs);
+    };
+
     // THIS HOOK IS PRESERVED FROM YOUR ORIGINAL CODE
     useEffect(() => {
         roomStateRef.current = roomState;
@@ -142,6 +228,7 @@ export default function GameRoom() {
                 tickRate: data?.tickRate,
                 receivedAt: performance.now(),
             });
+            clearRoundResultAnimations();
             setMatchStartData({ ...data, receivedAt: performance.now() });
             if (readyRetryTimerRef.current) {
                 clearInterval(readyRetryTimerRef.current);
@@ -160,6 +247,7 @@ export default function GameRoom() {
             setRoundOutcome(null);
             setRoundWinnerId(null);
             setRoundPrepared(false);
+            clearRoundResultAnimations();
         };
 
         const handleRoundTimer = (data = {}) => {
@@ -175,6 +263,7 @@ export default function GameRoom() {
             }
             setRoundOutcome(data.outcome ?? null);
             setRoundWinnerId(data.winnerId ?? null);
+            triggerRoundResultAnimations(data.winnerId ?? null, data.players ?? []);
             if (Array.isArray(data.players)) {
                 data.players.forEach((p) => {
                     const existing = allPlayers.current.get(p.id);
@@ -197,17 +286,9 @@ export default function GameRoom() {
                 return;
             }
             readyEmittedRef.current = false;
-            if (readyRetryTimerRef.current) {
-                clearInterval(readyRetryTimerRef.current);
-            }
             if (socket && roomStateRef.current !== "finished") {
-                console.log("GameRoom: clientReady emitted (round reset)");
-                socket.emit("clientReady");
-                readyRetryTimerRef.current = setInterval(() => {
-                    if (!socket || roomStateRef.current === "finished") return;
-                    console.log("GameRoom: clientReady retry");
-                    socket.emit("clientReady");
-                }, 1000);
+                const delayMs = data.winnerId ? ROUND_RESET_DELAY_MS : 250;
+                scheduleClientReady(delayMs);
             }
         };
 
@@ -326,6 +407,10 @@ export default function GameRoom() {
             if (countdownHoldRef.current) {
                 clearTimeout(countdownHoldRef.current);
                 countdownHoldRef.current = null;
+            }
+            if (roundReadyDelayRef.current) {
+                clearTimeout(roundReadyDelayRef.current);
+                roundReadyDelayRef.current = null;
             }
         };
     }, [roomId, socket]); // Dependencies for setup

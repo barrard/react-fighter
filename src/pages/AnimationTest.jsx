@@ -189,7 +189,8 @@ const AnimationTest = () => {
                 }
 
                 // Draw player
-                DrawPlayer(context, player);
+                const frameTime = typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
+                DrawPlayer(context, player, frameTime);
                 if (player.isPunching) DrawPunch(context, player);
                 if (player.isKicking) DrawKick(context, player);
             }

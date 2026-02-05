@@ -1,6 +1,7 @@
 // InputBatchHandler.js
 import { encodeInputMask } from "@shared/inputFlags.js";
 import { BASE_STATS } from "@shared/Characters.js";
+import { ATTACK_TYPES, getAttackTypeName } from "@shared/attackTypes.js";
 
 // Key -> Action mapping (easy to customize)
 const KEY_MAP = {
@@ -39,9 +40,12 @@ export default class InputBatchHandler {
 
         this.setDefaultInputState();
 
-        // Animation durations from shared character stats
+        // Animation durations from shared character stats (legacy)
         this.PUNCH_DURATION = BASE_STATS.punchDuration;
         this.KICK_DURATION = BASE_STATS.kickDuration;
+
+        // Directional attack durations
+        this.attackDurations = BASE_STATS.attacks;
 
         // Flag to track if the state has changed since last send
         this.stateChanged = false;
@@ -94,6 +98,7 @@ export default class InputBatchHandler {
             crouch: false,
             punch: false,
             kick: false,
+            attackType: ATTACK_TYPES.NONE,
         };
     }
 
@@ -154,20 +159,51 @@ export default class InputBatchHandler {
             return;
         }
 
-        // Punch - auto-release after duration
-        if (action === "punch" && !this.keysPressed.punch && !this.keysPressed.kick) {
-            this.keysPressed.punch = true;
-            setTimeout(() => {
-                this.keysPressed.punch = false;
-            }, this.PUNCH_DURATION);
+        // Already attacking - ignore new attack inputs
+        if (this.keysPressed.attackType !== ATTACK_TYPES.NONE) {
+            return;
         }
 
-        // Kick - auto-release after duration
-        if (action === "kick" && !this.keysPressed.kick && !this.keysPressed.punch) {
-            this.keysPressed.kick = true;
+        // Determine attack type based on direction + action
+        let attackType = ATTACK_TYPES.NONE;
+        let duration = 0;
+
+        if (action === "punch") {
+            if (this.keysPressed.jump) {
+                attackType = ATTACK_TYPES.HIGH_PUNCH;
+                duration = this.attackDurations.highPunch.duration;
+            } else if (this.keysPressed.crouch) {
+                attackType = ATTACK_TYPES.LOW_PUNCH;
+                duration = this.attackDurations.lowPunch.duration;
+            } else {
+                attackType = ATTACK_TYPES.MID_PUNCH;
+                duration = this.attackDurations.midPunch.duration;
+            }
+        } else if (action === "kick") {
+            if (this.keysPressed.jump) {
+                attackType = ATTACK_TYPES.HIGH_KICK;
+                duration = this.attackDurations.highKick.duration;
+            } else if (this.keysPressed.crouch) {
+                attackType = ATTACK_TYPES.LOW_KICK;
+                duration = this.attackDurations.lowKick.duration;
+            } else {
+                attackType = ATTACK_TYPES.MID_KICK;
+                duration = this.attackDurations.midKick.duration;
+            }
+        }
+
+        if (attackType !== ATTACK_TYPES.NONE) {
+            this.keysPressed.attackType = attackType;
+            // Set legacy flags for compatibility
+            this.keysPressed.punch = attackType >= ATTACK_TYPES.HIGH_PUNCH && attackType <= ATTACK_TYPES.LOW_PUNCH;
+            this.keysPressed.kick = attackType >= ATTACK_TYPES.HIGH_KICK && attackType <= ATTACK_TYPES.LOW_KICK;
+
+            // Auto-release after attack-specific duration
             setTimeout(() => {
+                this.keysPressed.attackType = ATTACK_TYPES.NONE;
+                this.keysPressed.punch = false;
                 this.keysPressed.kick = false;
-            }, this.KICK_DURATION);
+            }, duration);
         }
     }
 
