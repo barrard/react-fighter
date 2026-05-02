@@ -220,6 +220,21 @@ class GameLoop {
             this.myCanvas.status.textContent = "Disconnected from server. Trying to reconnect...";
         };
         this.socket.on("disconnect", this.onDisconnect);
+
+        // Resync tick clock and clear prediction state at the start of each round
+        this.onRoundStart = (data) => {
+            if (data.serverTick != null) {
+                this.localInputs.applyRoundStart(data);
+            }
+            // Clear any in-flight prediction from the previous round
+            this.inputsOnDeck = [];
+            this.pendingServerState = null;
+            this.localX_Adjustment = 0;
+            this.totalXBeenAdjusted = 0;
+            this.isJumping = false;
+            this.horizontalVelocity = 0;
+        };
+        this.socket.on("roundStart", this.onRoundStart);
     }
     // NEW: Add a start() method
     start() {
@@ -245,6 +260,7 @@ class GameLoop {
         if (this.onPlayerLeft) this.socket.off("playerLeft", this.onPlayerLeft);
         if (this.onGameState) this.socket.off("gs", this.onGameState);
         if (this.onDisconnect) this.socket.off("disconnect", this.onDisconnect);
+        if (this.onRoundStart) this.socket.off("roundStart", this.onRoundStart);
     }
 
     handleServerUpdateLocalPlayer(serverPlayerLocal) {

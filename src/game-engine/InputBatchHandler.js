@@ -108,6 +108,20 @@ export default class InputBatchHandler {
         this.setDefaultInputState();
     }
 
+    applyRoundStart(data) {
+        // Reanchor the tick clock to the server's current tick.
+        // localMatchStartTime mirrors what applyMatchStart does: record the
+        // wall-clock moment of receipt so getEstimatedServerTick() adds the
+        // one-way delay offset on top.
+        this.serverTickAtStart = data.serverTick;
+        this.localMatchStartTime = performance.now();
+        // Keep estimatedOneWayDelay from the original calibration — it doesn't
+        // change between rounds.
+        this.isMatchStarted = true;
+        this.inputHistory = {};
+        this.setDefaultInputState();
+    }
+
     setupEventListeners() {
         // Handle keydown events
         window.addEventListener("keydown", (e) => {
