@@ -71,33 +71,7 @@ class LatencyMonitor {
     }
 
     displayLatency() {
-        // Get or create latency display element
-        let latencyDisplay = document.getElementById("latency-display");
-        if (!latencyDisplay) {
-            latencyDisplay = document.createElement("div");
-            latencyDisplay.id = "latency-display";
-            latencyDisplay.style.position = "absolute";
-            latencyDisplay.style.top = "10px";
-            latencyDisplay.style.right = "10px";
-            latencyDisplay.style.padding = "5px";
-            latencyDisplay.style.backgroundColor = "rgba(0, 0, 0, 0.7)";
-            latencyDisplay.style.color = "white";
-            latencyDisplay.style.fontFamily = "monospace";
-            latencyDisplay.style.borderRadius = "3px";
-            document.body.appendChild(latencyDisplay);
-        }
-
-        // Determine color based on latency
-        let color = "#00ff00"; // Green for good latency
-        if (this.currentLatency > 100) color = "#ffff00"; // Yellow for medium latency
-        if (this.currentLatency > 200) color = "#ff0000"; // Red for high latency
-
-        latencyDisplay.innerHTML = `
-		<div>Ping: <span style="color:${color}">${this.currentLatency}ms</span></div>
-		<div>Min: ${this.minLatency}ms</div>
-		<div>Max: ${this.maxLatency}ms</div>
-		<div>DEBUG_NET: ${DEBUG_NET ? "true" : "false"}</div>
-	`;
+        // Display handled by React — see useLatency hook + Navbar
     }
 
     getLatency() {
@@ -107,10 +81,6 @@ class LatencyMonitor {
     destroy() {
         if (this.pingIntervalId) clearInterval(this.pingIntervalId);
         if (this.pongHandler) this.socket.off("pong", this.pongHandler);
-        const latencyDisplay = document.getElementById("latency-display");
-        if (latencyDisplay && latencyDisplay.parentNode) {
-            latencyDisplay.parentNode.removeChild(latencyDisplay);
-        }
     }
 }
 

@@ -6,7 +6,7 @@ import { FolderX } from "lucide-react";
 
 export default function NotFound() {
     return (
-        <div className="flex items-center justify-center min-h-[70vh]">
+        <div className="h-full flex items-center justify-center">
             <Card className="w-full max-w-md text-center">
                 <CardHeader>
                     <div className="flex justify-center mb-4">

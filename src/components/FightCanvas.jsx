@@ -8,10 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Swords } from "lucide-react";
 
 // Game Engine Imports
-import GameLoop from "../game-engine/GameLoop";
-import Canvas from "../game-engine/Canvas";
-import InputBatchHandler from "../game-engine/InputBatchHandler";
-import { getLatencyMonitor } from "../game-engine/latencySingleton";
+import { useGameEngine } from "../game-engine/useGameEngine";
 
 export default function FightCanvas({
     player1,
@@ -34,10 +31,10 @@ export default function FightCanvas({
 }) {
     const { socket } = useSocket();
     const canvasRef = useRef(null);
-    const gameLoopRef = useRef(null);
-    const inputBatcherRef = useRef(null);
     const readySentRef = useRef(false);
     const [hudHealth, setHudHealth] = useState({ p1: 100, p2: 100 });
+
+    const { inputBatcherRef } = useGameEngine({ socket, canvasRef, allPlayers, localPlayerId, matchStartData });
     const maxWins = 3;
 
     const getHealthPercent = (playerId) => {
@@ -49,58 +46,6 @@ export default function FightCanvas({
         return maxHealth > 0 ? Math.round((health / maxHealth) * 100) : 0;
     };
 
-    useEffect(() => {
-        if (socket && canvasRef.current) {
-            const latencyMonitor = getLatencyMonitor(socket);
-            const inputBatcher = new InputBatchHandler(socket);
-            inputBatcher.init(latencyMonitor);
-            inputBatcherRef.current = inputBatcher;
-
-            if (matchStartData) {
-                inputBatcher.applyMatchStart(matchStartData);
-            }
-
-            // --- 1. SETUP PHASE ---
-            console.log("Game Engine: Initializing in FightCanvas...");
-            // We simply create the instance of GameLoop.
-            // Its own constructor and socket listeners will handle starting the game.
-            gameLoopRef.current = new GameLoop(
-                new Canvas(socket, canvasRef.current),
-                socket,
-                inputBatcher,
-                localPlayerId,
-                allPlayers
-            );
-            gameLoopRef.current.start();
-
-            // --- 2. CLEANUP PHASE ---
-            return () => {
-                console.log("FightCanvas: Unmounting. Stopping game engine...");
-                if (gameLoopRef.current) {
-                    gameLoopRef.current.destroy(); // Clean up listeners on unmount
-                }
-                if (inputBatcherRef.current) {
-                    inputBatcherRef.current.destroy();
-                    inputBatcherRef.current = null;
-                }
-            };
-        }
-    }, [socket]); // This effect runs once when the component is ready
-
-    useEffect(() => {
-        if (matchStartData && inputBatcherRef.current) {
-            inputBatcherRef.current.applyMatchStart(matchStartData);
-            if (gameLoopRef.current && !gameLoopRef.current.isRunning) {
-                gameLoopRef.current.start();
-            }
-        }
-    }, [matchStartData]);
-
-    useEffect(() => {
-        if (inputBatcherRef.current && gameLoopRef.current && matchStartData == null) {
-            inputBatcherRef.current.resetForRound();
-        }
-    }, [matchStartData]);
 
     useEffect(() => {
         if (!canvasRef.current || readySentRef.current) return;
@@ -168,96 +113,95 @@ export default function FightCanvas({
         return "Match Over";
     };
 
-    // The JSX for rendering the UI remains exactly the same
     return (
-        <div className="space-y-4">
-            {/* Player Info and Health Bars */}
-            <div className="flex justify-between items-center gap-4 p-2 bg-slate-900/50 rounded-lg">
-                <div className="w-full space-y-2">
-                    <div className="flex justify-between font-bold text-lg">
+        <div className="h-full flex flex-col gap-1 overflow-hidden">
+            {/* HUD: Health Bars + Timer */}
+            <div className="flex-shrink-0 flex justify-between items-center gap-4 px-2 py-1 bg-slate-900/50 rounded-lg">
+                <div className="w-full space-y-1">
+                    <div className="flex justify-between font-bold text-sm">
                         <span>{player1?.character?.name || "Player 1"}</span>
-                        <span className="flex items-center gap-2">
+                        <span className="flex items-center gap-1">
                             {renderScoreMarks(roundScores?.player1Wins)}
                             P1
                         </span>
                     </div>
-                    <Progress value={hudHealth.p1} className="h-6 [&>div]:bg-red-500" />
+                    <Progress value={hudHealth.p1} className="h-4 [&>div]:bg-red-500" />
                 </div>
-                <div className="flex flex-col items-center">
-                    <Swords />
-                    <div className="text-5xl font-mono bg-slate-800 px-4 py-1 rounded">{timerSeconds}</div>
+                <div className="flex flex-col items-center flex-shrink-0">
+                    <Swords className="h-4 w-4" />
+                    <div className="text-3xl font-mono bg-slate-800 px-3 py-0.5 rounded leading-tight">{timerSeconds}</div>
+                    {roundNumber > 0 && (
+                        <div className="text-xs text-slate-400">Rd {roundNumber}</div>
+                    )}
                 </div>
-                <div className="w-full space-y-2">
-                    <div className="flex justify-between font-bold text-lg">
-                        <span className="flex items-center gap-2">
+                <div className="w-full space-y-1">
+                    <div className="flex justify-between font-bold text-sm">
+                        <span className="flex items-center gap-1">
                             P2
                             {renderScoreMarks(roundScores?.player2Wins)}
                         </span>
                         <span>{player2?.character?.name || "Player 2"}</span>
                     </div>
-                    <Progress value={hudHealth.p2} className="h-6 [&>div]:bg-red-500" />
+                    <Progress value={hudHealth.p2} className="h-4 [&>div]:bg-red-500" />
                 </div>
             </div>
-            {roundNumber > 0 && roundScores && (
-                <div className="flex justify-between text-sm text-slate-300">
-                    <span>Round {roundNumber}</span>
-                    <span>
-                        P1 {roundScores.player1Wins} - {roundScores.player2Wins} P2
-                    </span>
-                </div>
-            )}
+
             {roundOutcome && (
-                <div className="text-center text-sm text-slate-200">
+                <div className="flex-shrink-0 text-center text-xs text-slate-200">
                     {roundOutcome === "draw"
                         ? "Round ended in a draw"
                         : `Round winner: ${roundWinnerId === localPlayerId ? "You" : "Opponent"}`}
                 </div>
             )}
-            {/* The Game Canvas */}
-            <div className="relative w-full aspect-video bg-gray-900 rounded-md overflow-hidden">
-                <canvas
-                    ref={canvasRef}
-                    id="game-canvas"
-                    className="absolute top-0 left-0 w-full h-full"
-                    width="1024"
-                    height="576"
-                />
-                {showReadyBanner && (
-                    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-                        <div className="rounded-full bg-black/70 px-6 py-2 text-sm md:text-base font-semibold tracking-wide text-white">
-                            Ready... waiting for sync
-                        </div>
-                    </div>
-                )}
-                {showMatchEnd && (
-                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50">
-                        <div className="flex flex-col items-center gap-4 rounded-2xl bg-slate-900/90 px-8 py-6 text-white shadow-xl">
-                            <div className="text-2xl md:text-3xl font-bold">{winnerLabel()}</div>
-                            {rematchPending && (
-                                <div className="text-sm text-slate-300">Waiting for opponent...</div>
-                            )}
-                            <div className="flex items-center gap-3">
-                                <button
-                                    type="button"
-                                    className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:opacity-60"
-                                    onClick={onRematch}
-                                    disabled={rematchPending}
-                                >
-                                    Rematch
-                                </button>
-                                <button
-                                    type="button"
-                                    className="rounded-full bg-slate-700 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
-                                    onClick={onQuit}
-                                >
-                                    Quit
-                                </button>
+
+            {/* Game Canvas - fills remaining space, maintains 16:9 */}
+            <div className="flex-1 min-h-0 flex items-center justify-center overflow-hidden">
+                <div
+                    className="relative bg-gray-900 rounded-md overflow-hidden"
+                    style={{ aspectRatio: "16/9", maxWidth: "100%", maxHeight: "100%", width: "100%" }}
+                >
+                    <canvas
+                        ref={canvasRef}
+                        id="game-canvas"
+                        className="absolute inset-0 w-full h-full"
+                        width="1024"
+                        height="576"
+                    />
+                    {showReadyBanner && (
+                        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+                            <div className="rounded-full bg-black/70 px-6 py-2 text-sm font-semibold tracking-wide text-white">
+                                Ready... waiting for sync
                             </div>
                         </div>
-                    </div>
-                )}
-                <div id="status">Connecting to server...</div>
-                <div id="controls">Controls: Use ← and → arrow keys to move, ↑ to jump</div>
+                    )}
+                    {showMatchEnd && (
+                        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50">
+                            <div className="flex flex-col items-center gap-4 rounded-2xl bg-slate-900/90 px-8 py-6 text-white shadow-xl">
+                                <div className="text-2xl md:text-3xl font-bold">{winnerLabel()}</div>
+                                {rematchPending && (
+                                    <div className="text-sm text-slate-300">Waiting for opponent...</div>
+                                )}
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        type="button"
+                                        className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:opacity-60"
+                                        onClick={onRematch}
+                                        disabled={rematchPending}
+                                    >
+                                        Rematch
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="rounded-full bg-slate-700 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+                                        onClick={onQuit}
+                                    >
+                                        Quit
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

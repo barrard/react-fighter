@@ -6,7 +6,7 @@ export default class Canvas {
         this.ctx = this.canvas.getContext("2d");
 
         // Game elements
-        this.status = document.getElementById("status");
+        this.status = document.getElementById("status") ?? { textContent: "" };
 
         DrawInitialScene(this.canvas, this.ctx);
         this.init();

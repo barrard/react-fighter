@@ -98,23 +98,25 @@ const PlayerSelectionUI = ({ playerTitle, selectedCharacter, isCurrentUser, onCo
 
     return (
         <div
-            className={`w-full md:w-1/2 flex justify-center transition-all duration-500 ease-in-out ${
+            className={`h-full flex flex-col transition-all duration-500 ease-in-out ${
                 isLockedIn ? "scale-105" : ""
             }`}
         >
-            <div className="bg-gray-800 p-4 rounded-md w-full max-w-md">
-                <div className="text-center mb-4">
-                    <h2 className="text-2xl font-bold text-white mb-1">{playerTitle}</h2>
-                    <h3 className="text-xl font-semibold text-white">{characterName}</h3>
-                    <p className="text-sm text-gray-300 h-5">{statusText()}</p>
+            <div className="bg-gray-800 p-3 rounded-md flex flex-col h-full">
+                <div className="text-center flex-shrink-0 mb-2">
+                    <h2 className="text-xl font-bold text-white">{playerTitle}</h2>
+                    <h3 className="text-lg font-semibold text-white">{characterName}</h3>
+                    <p className="text-xs text-gray-300 h-4">{statusText()}</p>
                 </div>
-                <div className="flex justify-center mb-4">
-                    <canvas ref={previewCanvasRef} width={200} height={200} className="rounded-md" />
+
+                {/* Preview canvas - proportional flex space */}
+                <div className="flex justify-center flex-1 min-h-0 mb-2">
+                    <canvas ref={previewCanvasRef} width={200} height={200} className="rounded-md max-h-full" style={{ aspectRatio: "1/1" }} />
                 </div>
 
                 {isCurrentUser && !isLockedIn && characters && (
-                    <>
-                        <div className="grid grid-cols-4 gap-4 mb-4">
+                    <div className="flex-shrink-0">
+                        <div className="grid grid-cols-4 gap-2 mb-2">
                             {characters.map((char, idx) => (
                                 <div
                                     key={char.id}
@@ -125,13 +127,13 @@ const PlayerSelectionUI = ({ playerTitle, selectedCharacter, isCurrentUser, onCo
                                         ref={(el) => (canvasRefs.current[idx] = el)}
                                         width={100}
                                         height={80}
-                                        className="rounded-md"
+                                        className="rounded-md w-full"
                                     />
                                 </div>
                             ))}
                         </div>
                         <button
-                            className="w-full px-4 py-2 bg-green-500 text-white rounded-md"
+                            className="w-full px-4 py-2 bg-green-500 text-white rounded-md text-sm"
                             onClick={() => {
                                 setSelectionAnimation(true);
                                 setTimeout(() => {
@@ -143,7 +145,7 @@ const PlayerSelectionUI = ({ playerTitle, selectedCharacter, isCurrentUser, onCo
                         >
                             Confirm Selection
                         </button>
-                    </>
+                    </div>
                 )}
             </div>
         </div>
@@ -178,28 +180,32 @@ export default function CharacterSelect({ player1, player2, role, isTrainingMode
     }
 
     return (
-        <div className="flex flex-col md:flex-row gap-8 justify-center items-start">
-            <PlayerSelectionUI
-                playerTitle="Player 1"
-                selectedCharacter={player1?.character || (isSpectator && player1?.previewCharacter)}
-                isCurrentUser={isPlayer1}
-                onConfirm={handleConfirmSelection}
-                isLockedIn={!!player1?.character?.name} // Is locked in if character data is present
-                characters={characters}
-            />
+        <div className="h-full flex flex-row gap-4 justify-center items-stretch">
+            <div className="flex-1 min-w-0">
+                <PlayerSelectionUI
+                    playerTitle="Player 1"
+                    selectedCharacter={player1?.character || (isSpectator && player1?.previewCharacter)}
+                    isCurrentUser={isPlayer1}
+                    onConfirm={handleConfirmSelection}
+                    isLockedIn={!!player1?.character?.name}
+                    characters={characters}
+                />
+            </div>
 
             {!isTrainingMode && (
                 <>
-                    <div className="self-center text-5xl font-bold p-4">VS</div>
+                    <div className="flex items-center text-4xl font-bold px-2 flex-shrink-0">VS</div>
 
-                    <PlayerSelectionUI
-                        playerTitle="Player 2"
-                        selectedCharacter={player2?.character || (isSpectator && player2?.previewCharacter)}
-                        isCurrentUser={isPlayer2}
-                        onConfirm={handleConfirmSelection}
-                        isLockedIn={!!player2?.character?.name} // Is locked in if character data is present
-                        characters={characters}
-                    />
+                    <div className="flex-1 min-w-0">
+                        <PlayerSelectionUI
+                            playerTitle="Player 2"
+                            selectedCharacter={player2?.character || (isSpectator && player2?.previewCharacter)}
+                            isCurrentUser={isPlayer2}
+                            onConfirm={handleConfirmSelection}
+                            isLockedIn={!!player2?.character?.name}
+                            characters={characters}
+                        />
+                    </div>
                 </>
             )}
         </div>

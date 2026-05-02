@@ -1,54 +1,55 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
 import { useSocket } from "../context/SocketContext";
-import { Button } from "@/components/ui/button";
+import { useLatency } from "../hooks/useLatency";
 import { Swords } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+function pingColor(ms) {
+    if (ms === 0) return "text-muted-foreground";
+    if (ms < 60) return "text-green-500";
+    if (ms < 150) return "text-yellow-500";
+    return "text-red-500";
+}
 
 export default function Navbar() {
-    const { username, isConnected, error, setError, socket } = useSocket();
+    const { username, isConnected, error, socket } = useSocket();
+    const latency = useLatency(socket);
 
     return (
-        <header className="bg-background border-b">
-            <div className="container mx-auto py-4 px-4 flex items-center justify-between">
+        <header className="bg-background border-b flex-shrink-0">
+            <div className="container mx-auto py-2 px-4 flex items-center justify-between">
                 <Link to="/" className="flex items-center gap-2">
-                    <Swords className="h-6 w-6 text-primary" />
-                    <span className="text-xl font-bold">Fighter Arena</span>
-                </Link>
-                <Link to="/training-grounds" className="flex items-center gap-2">
-                    <span className="text-xl font-bold">Training Grounds</span>
-                </Link>
-                <Link to="/animation-test" className="flex items-center gap-2">
-                    <span className="text-xl font-bold">Animation Test</span>
+                    <Swords className="h-5 w-5 text-primary" />
+                    <span className="font-bold tracking-tight">Fighter Arena</span>
                 </Link>
 
                 {error && (
-                    <div className="flex items-center gap-4">
-                        <Alert variant="destructive" className="mb-6">
-                            <AlertTitle>Error</AlertTitle>
-                            <AlertDescription>{error}</AlertDescription>
-                        </Alert>
-                    </div>
+                    <Alert variant="destructive" className="py-1 px-3 max-w-xs">
+                        <AlertDescription className="text-xs">{error}</AlertDescription>
+                    </Alert>
                 )}
 
                 <div className="flex items-center gap-4">
-                    {isConnected ? (
-                        <div className="flex items-center gap-2">
-                            <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                            <span className="text-sm text-muted-foreground">Connected</span>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2">
-                            <div className="h-2 w-2 rounded-full bg-red-500"></div>
-                            <span className="text-sm text-muted-foreground">Disconnected</span>
-                        </div>
-                    )}
+                    {/* Ping stats */}
+                    <div className="flex items-center gap-2 font-mono text-xs">
+                        <span className={`font-semibold ${pingColor(latency.current)}`}>
+                            {latency.current > 0 ? `${latency.current}ms` : "—"}
+                        </span>
+                        {latency.min !== null && (
+                            <span className="text-muted-foreground">
+                                ↓{latency.min} ↑{latency.max}
+                            </span>
+                        )}
+                    </div>
 
-                    {username && (
-                        <Button variant="ghost" size="sm" className="text-sm">
-                            Playing as: {username}
-                        </Button>
-                    )}
+                    {/* Connection + username */}
+                    <div className="flex items-center gap-2">
+                        <div className={`h-2 w-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`} />
+                        {username && (
+                            <span className="text-sm font-medium">{username}</span>
+                        )}
+                    </div>
                 </div>
             </div>
         </header>

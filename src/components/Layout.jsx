@@ -4,13 +4,11 @@ import Navbar from "./Navbar";
 
 export default function Layout() {
     return (
-        // <ThemeProvider defaultTheme="dark" storageKey="fighter-game-theme">
-        <div className="min-h-screen bg-background">
+        <div className="h-full flex flex-col overflow-hidden bg-background">
             <Navbar />
-            <main className="container mx-auto py-6 px-4">
+            <main className="flex-1 min-h-0 overflow-hidden container mx-auto px-4 py-3">
                 <Outlet context={{ someValue: "data", someFunction: () => {} }} />
             </main>
         </div>
-        // </ThemeProvider>
     );
 }

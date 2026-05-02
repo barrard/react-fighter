@@ -450,21 +450,21 @@ export default function GameRoom() {
     };
 
     return (
-        <div className="space-y-6 container mx-auto p-4 relative">
-            <header className="flex items-center justify-between">
+        <div className="h-full flex flex-col gap-2 overflow-hidden">
+            <header className="flex items-center justify-between flex-shrink-0">
                 <Button variant="ghost" size="icon" onClick={leaveRoom}>
                     <ArrowLeft className="h-5 w-5" />
                 </Button>
                 <Badge variant="outline">Room: {roomId}</Badge>
                 <div className="flex items-center gap-2">
                     <Timer className="h-5 w-5" />
-                    <span className="capitalize">Game State: {roomState}</span>
+                    <span className="capitalize text-sm">Game State: {roomState}</span>
                 </div>
             </header>
 
-            <hr />
+            <hr className="flex-shrink-0" />
 
-            <main>
+            <main className="flex-1 min-h-0 overflow-hidden">
                 {startCountdown && roomState === "fighting" && (
                     <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
                         <div className="rounded-2xl bg-black/70 px-10 py-6 text-4xl md:text-6xl font-bold tracking-widest text-white shadow-xl">
@@ -477,12 +477,14 @@ export default function GameRoom() {
 
                 {/* STATE 2: CHARACTER SELECT */}
                 {roomState === "verified" && (
-                    <CharacterSelect
-                        player1={player1}
-                        player2={player2}
-                        role={roomVerified}
-                        isTrainingMode={roomId && roomId.startsWith("training-")}
-                    />
+                    <div className="h-full">
+                        <CharacterSelect
+                            player1={player1}
+                            player2={player2}
+                            role={roomVerified}
+                            isTrainingMode={roomId && roomId.startsWith("training-")}
+                        />
+                    </div>
                 )}
 
                 {/* STATE 3: THE FIGHT! */}

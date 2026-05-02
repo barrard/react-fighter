@@ -206,16 +206,26 @@ const AnimationTest = () => {
     }, []);
 
     return (
-        <div className="container mx-auto p-4">
-            <h1 className="text-2xl font-bold mb-4">Animation Test</h1>
-            <div className="flex gap-4 mb-4 text-sm text-gray-600">
-                <span><strong>Left/Right:</strong> Move</span>
-                <span><strong>Down:</strong> Crouch</span>
-                <span><strong>Up/Space:</strong> Jump</span>
-                <span><strong>Z:</strong> Punch</span>
-                <span><strong>X:</strong> Kick</span>
+        <div className="h-full flex flex-col gap-2 overflow-hidden">
+            <div className="flex-shrink-0 flex items-center gap-6">
+                <h1 className="text-xl font-bold">Animation Test</h1>
+                <div className="flex gap-4 text-sm text-gray-600">
+                    <span><strong>←/→:</strong> Move</span>
+                    <span><strong>↓:</strong> Crouch</span>
+                    <span><strong>↑/Space:</strong> Jump</span>
+                    <span><strong>Z:</strong> Punch</span>
+                    <span><strong>X:</strong> Kick</span>
+                </div>
             </div>
-            <canvas ref={canvasRef} width={CONSTS.CANVAS_WIDTH} height={CONSTS.CANVAS_HEIGHT} className="bg-blue-300 border-2 border-gray-400" />
+            <div className="flex-1 min-h-0 flex items-center justify-center overflow-hidden">
+                <canvas
+                    ref={canvasRef}
+                    width={CONSTS.CANVAS_WIDTH}
+                    height={CONSTS.CANVAS_HEIGHT}
+                    className="bg-blue-300 border-2 border-gray-400"
+                    style={{ aspectRatio: `${CONSTS.CANVAS_WIDTH}/${CONSTS.CANVAS_HEIGHT}`, maxWidth: "100%", maxHeight: "100%" }}
+                />
+            </div>
         </div>
     );
 };
