@@ -1,7 +1,8 @@
 // import CONSTS from "/js/contants.js";
 import CONSTS from "./contants.js";
 import { decodeGameStatePayload } from "@shared/stateCodec.js";
-import { ATTACK_TYPES, isPunch, isKick, getAttackTypeName } from "@shared/attackTypes.js";
+import { ATTACK_TYPES, isPunch, isKick, isRanged, getAttackTypeName } from "@shared/attackTypes.js";
+import { getProjectileSpawnTick } from "@shared/projectileSim.js";
 import { BASE_STATS } from "@shared/Characters.js";
 import {
     DrawPlayer,
@@ -15,12 +16,13 @@ import {
 // import { DrawPlayer, DrawPunch, DrawKick, DrawFaceDirection, DrawYou, DrawFloor, DrawInitialScene  } from "http://localhost:3000/js/Draw.js";
 
 class GameLoop {
-    constructor(myCanvas, socket, inputBatcher, localPlayerId, allPlayers) {
+    constructor(myCanvas, socket, inputBatcher, localPlayerId, allPlayers, options = {}) {
         this.socket = socket;
         this.localInputs = inputBatcher;
         this.myCanvas = myCanvas;
         this.canvas = myCanvas.canvas;
         this.ctx = this.canvas.getContext("2d");
+        this.localOnly = Boolean(options.localOnly);
         this.debugNet = import.meta.env.VITE_DEBUG_NET === "true";
         this.lastNetDebugAt = 0;
 
@@ -63,6 +65,8 @@ class GameLoop {
 
     init() {
         this.localInputs.gameLoop = this;
+        this.localInputs.setFacingResolver(() => this.allPlayers.get(this.localPlayerId)?.facing || "right");
+        this.localInputs.setPlayerResolver(() => this.allPlayers.get(this.localPlayerId) || null);
         // this.socket.on("initServerPlayers", (serverData) => {
         //     debugger;
 
@@ -179,6 +183,9 @@ class GameLoop {
                         otherPlayer.isPunching = serverPlayer.isPunching || false;
                         otherPlayer.isKicking = serverPlayer.isKicking || false;
                         otherPlayer.currentAttackType = serverPlayer.currentAttackType || ATTACK_TYPES.NONE;
+                        otherPlayer.attackStartTick = serverPlayer.attackStartTick ?? null;
+                        otherPlayer.projectileSpawnX = serverPlayer.projectileSpawnX ?? null;
+                        otherPlayer.projectileSpawnHeight = serverPlayer.projectileSpawnHeight ?? null;
                     }
                 }
             });
@@ -291,6 +298,9 @@ class GameLoop {
         if (serverPlayerLocal.facing) {
             localFuturePlayer.facing = serverPlayerLocal.facing;
         }
+        localFuturePlayer.attackStartTick = serverPlayerLocal.attackStartTick ?? localFuturePlayer.attackStartTick ?? null;
+        localFuturePlayer.projectileSpawnX = serverPlayerLocal.projectileSpawnX ?? localFuturePlayer.projectileSpawnX ?? null;
+        localFuturePlayer.projectileSpawnHeight = serverPlayerLocal.projectileSpawnHeight ?? localFuturePlayer.projectileSpawnHeight ?? null;
 
         // Sync health from server (stateCodec transmits health)
         if (serverPlayerLocal.health !== undefined) localFuturePlayer.health = serverPlayerLocal.health;
@@ -472,17 +482,38 @@ class GameLoop {
         const attackType = keys.attackType || ATTACK_TYPES.NONE;
         if (attackType !== ATTACK_TYPES.NONE && !player.currentAttackType) {
             const typeName = getAttackTypeName(attackType);
-            const attackStats = BASE_STATS.attacks[typeName];
+            const attackStats = attackType === ATTACK_TYPES.RANGED
+                ? player.rangedAttack
+                : (player.attacks?.[typeName] || BASE_STATS.attacks[typeName]);
             const duration = attackStats?.duration || (isPunch(attackType) ? player.punchDuration : player.kickDuration) || 300;
 
             player.currentAttackType = attackType;
             player.isPunching = isPunch(attackType);
             player.isKicking = isKick(attackType);
+            player.isRangedAttacking = isRanged(attackType);
+            if (attackType === ATTACK_TYPES.RANGED && this.localOnly) {
+                player.attackStartTick = this.localInputs.getEstimatedServerTick();
+                player.projectileSpawnX = player.facing === "right"
+                    ? player.x + (player.rangedAttack?.xOffset || player.characterWidth)
+                    : player.x - (player.rangedAttack?.xOffset || player.characterWidth);
+                player.projectileSpawnHeight = player.height;
+                player.projectileSpawnTick = getProjectileSpawnTick(player.attackStartTick, player.rangedAttack);
+            } else {
+                player.attackStartTick = null;
+                player.projectileSpawnX = null;
+                player.projectileSpawnHeight = null;
+                player.projectileSpawnTick = null;
+            }
 
             setTimeout(() => {
                 player.currentAttackType = ATTACK_TYPES.NONE;
                 player.isPunching = false;
                 player.isKicking = false;
+                player.isRangedAttacking = false;
+                player.attackStartTick = null;
+                player.projectileSpawnX = null;
+                player.projectileSpawnHeight = null;
+                player.projectileSpawnTick = null;
             }, duration);
         }
 
@@ -625,11 +656,12 @@ class GameLoop {
             // Draw attack animations (directional punch/kick)
             const attackType = player.currentAttackType || ATTACK_TYPES.NONE;
             const hasRoundAnimation = Boolean(player.roundAnimation);
+            const estimatedServerTick = this.localInputs.getEstimatedServerTick();
             if (
                 !hasRoundAnimation &&
                 (attackType !== ATTACK_TYPES.NONE || player.isPunching || player.isKicking)
             ) {
-                DrawAttack(this.ctx, player);
+                DrawAttack(this.ctx, player, estimatedServerTick);
             }
 
             // Draw direction indicator (eyes on head)

@@ -1,6 +1,9 @@
 import React, { useRef, useEffect } from "react";
-import { DrawPlayer, DrawFloor, DrawPunch, DrawKick } from "../game-engine/Draw";
+import { DrawPlayer, DrawFloor, DrawAttack } from "../game-engine/Draw";
 import CONSTS from "../game-engine/contants";
+import { ATTACK_TYPES, isPunch, isKick, isRanged } from "@shared/attackTypes.js";
+import { createComboState, updateForwardComboState, consumeRangedCombo } from "@shared/comboSystem.js";
+import { getProjectileSpawnTick } from "@shared/projectileSim.js";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
@@ -16,13 +19,15 @@ const AnimationTest = () => {
         z: false,
         x: false,
     });
+    const comboStateRef = useRef(createComboState());
+    const previousInputRef = useRef({ left: false, right: false, jump: false, crouch: false, attackType: ATTACK_TYPES.NONE });
 
     // Load character data once
     useEffect(() => {
         fetch(`${API_BASE}/characters`)
             .then((res) => res.json())
             .then((data) => {
-                const char = data[0];
+                const char = data.find((entry) => entry.stats?.rangedAttack) || data[0];
                 const stats = char.stats;
                 playerRef.current = {
                     ...stats,
@@ -38,6 +43,7 @@ const AnimationTest = () => {
                     isJumping: false,
                     isPunching: false,
                     isKicking: false,
+                    currentAttackType: ATTACK_TYPES.NONE,
                     facing: "right",
                 };
             })
@@ -126,6 +132,7 @@ const AnimationTest = () => {
             const player = playerRef.current;
             if (player) {
                 const keys = keysRef.current;
+                const comboTick = Math.floor(performance.now() / (1000 / 60));
 
                 // Crouching
                 player.isCrouching = keys.down && !player.isJumping;
@@ -173,26 +180,78 @@ const AnimationTest = () => {
                 }
 
                 // Punching (trigger on press, not hold)
-                if (keys.z && !player.isPunching && !player.isKicking) {
+                if (keys.z && player.currentAttackType === ATTACK_TYPES.NONE) {
+                    const attackType = keys.jump ? ATTACK_TYPES.HIGH_PUNCH : keys.down ? ATTACK_TYPES.LOW_PUNCH : ATTACK_TYPES.MID_PUNCH;
+                    player.currentAttackType = attackType;
                     player.isPunching = true;
+                    previousInputRef.current.attackType = attackType;
                     setTimeout(() => {
-                        if (playerRef.current) playerRef.current.isPunching = false;
-                    }, 200);
+                        if (playerRef.current) {
+                            playerRef.current.isPunching = false;
+                            playerRef.current.currentAttackType = ATTACK_TYPES.NONE;
+                        }
+                        previousInputRef.current.attackType = ATTACK_TYPES.NONE;
+                    }, player.attacks?.highPunch?.duration || 250);
                 }
 
                 // Kicking (trigger on press, not hold)
-                if (keys.x && !player.isKicking && !player.isPunching) {
-                    player.isKicking = true;
+                if (keys.x && player.currentAttackType === ATTACK_TYPES.NONE) {
+                    updateForwardComboState(
+                        comboStateRef.current,
+                        { left: keys.left, right: keys.right },
+                        previousInputRef.current,
+                        player.facing,
+                        comboTick
+                    );
+                    const wantsRanged = player.rangedAttack &&
+                        consumeRangedCombo(comboStateRef.current, comboTick);
+                    const attackType = wantsRanged
+                        ? ATTACK_TYPES.RANGED
+                        : keys.jump ? ATTACK_TYPES.HIGH_KICK : keys.down ? ATTACK_TYPES.LOW_KICK : ATTACK_TYPES.MID_KICK;
+                    player.currentAttackType = attackType;
+                    player.isPunching = isPunch(attackType);
+                    player.isKicking = isKick(attackType);
+                    player.isRangedAttacking = isRanged(attackType);
+                    player.attackStartTick = comboTick;
+                    if (wantsRanged) {
+                        player.projectileSpawnX = player.facing === "right"
+                            ? player.x + (player.rangedAttack?.xOffset || player.characterWidth)
+                            : player.x - (player.rangedAttack?.xOffset || player.characterWidth);
+                        player.projectileSpawnHeight = player.height;
+                        player.projectileSpawnTick = getProjectileSpawnTick(player.attackStartTick, player.rangedAttack);
+                    }
+                    previousInputRef.current.attackType = attackType;
                     setTimeout(() => {
-                        if (playerRef.current) playerRef.current.isKicking = false;
-                    }, 250);
+                        if (playerRef.current) {
+                            playerRef.current.isKicking = false;
+                            playerRef.current.isPunching = false;
+                            playerRef.current.isRangedAttacking = false;
+                            playerRef.current.currentAttackType = ATTACK_TYPES.NONE;
+                            playerRef.current.attackStartTick = null;
+                            playerRef.current.projectileSpawnX = null;
+                            playerRef.current.projectileSpawnHeight = null;
+                            playerRef.current.projectileSpawnTick = null;
+                        }
+                        previousInputRef.current.attackType = ATTACK_TYPES.NONE;
+                    }, wantsRanged ? player.rangedAttack.duration : player.attacks?.midKick?.duration || 250);
                 }
+
+                updateForwardComboState(
+                    comboStateRef.current,
+                    { left: keys.left, right: keys.right },
+                    previousInputRef.current,
+                    player.facing,
+                    comboTick
+                );
+                previousInputRef.current.left = keys.left;
+                previousInputRef.current.right = keys.right;
+                previousInputRef.current.crouch = keys.down;
+                previousInputRef.current.jump = keys.jump;
 
                 // Draw player
                 const frameTime = typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
                 DrawPlayer(context, player, frameTime);
-                if (player.isPunching) DrawPunch(context, player);
-                if (player.isKicking) DrawKick(context, player);
+                if (player.currentAttackType !== ATTACK_TYPES.NONE) DrawAttack(context, player, comboTick);
             }
             animationFrameId = window.requestAnimationFrame(render);
         };
@@ -215,6 +274,7 @@ const AnimationTest = () => {
                     <span><strong>↑/Space:</strong> Jump</span>
                     <span><strong>Z:</strong> Punch</span>
                     <span><strong>X:</strong> Kick</span>
+                    <span><strong>→→ or ←← + X:</strong> Ranged</span>
                 </div>
             </div>
             <div className="flex-1 min-h-0 flex items-center justify-center overflow-hidden">

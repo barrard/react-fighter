@@ -1,5 +1,6 @@
 import CONSTS from "./contants.js";
-import { ATTACK_TYPES, isPunch, isKick } from "@shared/attackTypes.js";
+import { ATTACK_TYPES, isPunch, isKick, isRanged } from "@shared/attackTypes.js";
+import { getProjectileState } from "@shared/projectileSim.js";
 
 const {
     FLOOR_HEIGHT,
@@ -11,6 +12,145 @@ const {
     STICK_FOOT_Y,
     STICK_LINE_WIDTH,
 } = CONSTS;
+
+function getVisual(player) {
+    return player.visual || {};
+}
+
+function drawBodySilhouette(ctx, player, cx, shoulderY, hipY, headCY) {
+    const visual = getVisual(player);
+    const shoulderScale = visual.shoulderScale || 1;
+    const hipScale = visual.hipScale || 1;
+    const bodyShape = visual.bodyShape || "athletic";
+    const accent = visual.accentColor || player.color;
+    const secondary = visual.secondaryColor || "#111827";
+    const shoulderWidth = 12 * shoulderScale;
+    const hipWidth = 10 * hipScale;
+
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = secondary;
+    ctx.beginPath();
+    ctx.moveTo(cx - shoulderWidth, shoulderY - 2);
+    if (bodyShape === "robe") {
+        ctx.lineTo(cx - hipWidth * 1.8, hipY + 12);
+        ctx.lineTo(cx + hipWidth * 1.8, hipY + 12);
+    } else if (bodyShape === "heavy") {
+        ctx.lineTo(cx - hipWidth * 1.3, hipY + 4);
+        ctx.lineTo(cx + hipWidth * 1.3, hipY + 4);
+    } else if (bodyShape === "lean") {
+        ctx.lineTo(cx - hipWidth * 0.85, hipY + 2);
+        ctx.lineTo(cx + hipWidth * 0.85, hipY + 2);
+    } else {
+        ctx.lineTo(cx - hipWidth, hipY + 3);
+        ctx.lineTo(cx + hipWidth, hipY + 3);
+    }
+    ctx.lineTo(cx + shoulderWidth, shoulderY - 2);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = accent;
+    if (visual.accessory === "pauldron") {
+        ctx.fillRect(cx - shoulderWidth - 6, shoulderY - 4, 12, 8);
+        ctx.fillRect(cx + shoulderWidth - 6, shoulderY - 4, 12, 8);
+    } else if (visual.accessory === "mask") {
+        ctx.fillRect(cx - 10, headCY - 4, 20, 6);
+    } else if (visual.accessory === "quiver") {
+        ctx.fillRect(cx - 14, shoulderY + 4, 6, 18);
+    } else if (visual.accessory === "fur") {
+        ctx.beginPath();
+        ctx.moveTo(cx - shoulderWidth, shoulderY);
+        ctx.lineTo(cx, shoulderY + 10);
+        ctx.lineTo(cx + shoulderWidth, shoulderY);
+        ctx.closePath();
+        ctx.fill();
+    } else if (visual.accessory === "sash") {
+        ctx.fillRect(cx - 12, hipY - 2, 24, 4);
+    } else if (visual.accessory === "glow") {
+        ctx.globalAlpha = 0.35;
+        ctx.beginPath();
+        ctx.arc(cx, headCY, 18, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.restore();
+}
+
+function drawHeadStyle(ctx, player, cx, headCY) {
+    const visual = getVisual(player);
+    const accent = visual.accentColor || "#f8fafc";
+    const secondary = visual.secondaryColor || "#111827";
+
+    ctx.save();
+    ctx.fillStyle = accent;
+    if (visual.headShape === "square") {
+        ctx.fillRect(cx - 9, headCY - 9, 18, 18);
+    } else if (visual.headShape === "oval") {
+        ctx.beginPath();
+        ctx.ellipse(cx, headCY, 9, 11, 0, 0, Math.PI * 2);
+        ctx.fill();
+    } else {
+        ctx.beginPath();
+        ctx.arc(cx, headCY, STICK_HEAD_RADIUS, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    ctx.fillStyle = secondary;
+    if (visual.hairStyle === "hood") {
+        ctx.beginPath();
+        ctx.arc(cx, headCY - 2, 12, Math.PI, 0);
+        ctx.fill();
+    } else if (visual.hairStyle === "crest") {
+        ctx.fillRect(cx - 3, headCY - 18, 6, 10);
+    } else if (visual.hairStyle === "topknot") {
+        ctx.beginPath();
+        ctx.arc(cx, headCY - 12, 4, 0, Math.PI * 2);
+        ctx.fill();
+    } else if (visual.hairStyle === "short") {
+        ctx.fillRect(cx - 8, headCY - 11, 16, 5);
+    }
+    ctx.restore();
+}
+
+function drawIdleWeapon(ctx, player, cx, shoulderY, hipY) {
+    const visual = getVisual(player);
+    const accent = visual.accentColor || "#f8fafc";
+    ctx.save();
+    ctx.strokeStyle = accent;
+    ctx.fillStyle = accent;
+    ctx.lineWidth = 2;
+
+    if (visual.weapon === "sword") {
+        ctx.beginPath();
+        ctx.moveTo(cx + 16, shoulderY + 2);
+        ctx.lineTo(cx + 16, hipY + 20);
+        ctx.stroke();
+    } else if (visual.weapon === "staff") {
+        ctx.beginPath();
+        ctx.moveTo(cx - 16, shoulderY - 4);
+        ctx.lineTo(cx - 10, hipY + 24);
+        ctx.stroke();
+    } else if (visual.weapon === "bow") {
+        ctx.beginPath();
+        ctx.arc(cx + 18, shoulderY + 10, 14, -Math.PI / 2, Math.PI / 2);
+        ctx.stroke();
+    } else if (visual.weapon === "dagger") {
+        ctx.beginPath();
+        ctx.moveTo(cx - 14, shoulderY + 8);
+        ctx.lineTo(cx - 4, hipY + 8);
+        ctx.stroke();
+    } else if (visual.weapon === "axe") {
+        ctx.beginPath();
+        ctx.moveTo(cx + 18, shoulderY - 4);
+        ctx.lineTo(cx + 18, hipY + 18);
+        ctx.stroke();
+        ctx.fillRect(cx + 18, shoulderY - 4, 8, 8);
+    } else if (visual.weapon === "beads") {
+        ctx.beginPath();
+        ctx.arc(cx, shoulderY + 6, 6, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+    ctx.restore();
+}
 
 export function DrawPlayer(ctx, player, timestamp = (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now())) {
     ctx.save();
@@ -47,8 +187,6 @@ export function DrawPlayer(ctx, player, timestamp = (typeof performance !== "und
     const shoulderY = baseShoulderY + crouchDrop + torsoShrink - bounceOffset;
     const neckY = baseNeckY + crouchDrop + torsoShrink - bounceOffset;
     const headCY = baseHeadCY + crouchDrop + torsoShrink - bounceOffset;
-    const headR = STICK_HEAD_RADIUS; // head stays same size
-
     if (isKnockedDown) {
         const fallProgress = Math.min(1, animationElapsed / 500);
         const easedFall = Math.sin((fallProgress * Math.PI) / 2);
@@ -64,10 +202,8 @@ export function DrawPlayer(ctx, player, timestamp = (typeof performance !== "und
     ctx.lineWidth = STICK_LINE_WIDTH;
     ctx.lineCap = "round";
 
-    // Head — filled circle
-    ctx.beginPath();
-    ctx.arc(cx, headCY, headR, 0, Math.PI * 2);
-    ctx.fill();
+    drawBodySilhouette(ctx, player, cx, shoulderY, hipY, headCY);
+    drawHeadStyle(ctx, player, cx, headCY);
 
     // Torso — neck to hips
     ctx.beginPath();
@@ -75,9 +211,12 @@ export function DrawPlayer(ctx, player, timestamp = (typeof performance !== "und
     ctx.lineTo(cx, hipY);
     ctx.stroke();
 
+    if (!player.currentAttackType || player.currentAttackType === ATTACK_TYPES.NONE) {
+        drawIdleWeapon(ctx, player, cx, shoulderY, hipY);
+    }
+
     // Arms (idle) — skip when punching, DrawPunch handles both arms
     if (!player.isPunching) {
-        const armLength = 20; // total arm length
         const upperArm = 10;  // shoulder to elbow
         const forearm = 10;   // elbow to hand
 
@@ -291,7 +430,7 @@ export function DrawHealthBar(ctx, player) {
 }
 
 // Dispatches to the correct directional punch or kick based on currentAttackType
-export function DrawAttack(ctx, player) {
+export function DrawAttack(ctx, player, currentTick = null) {
     const attackType = player.currentAttackType || ATTACK_TYPES.NONE;
 
     // Determine which attack to draw
@@ -299,6 +438,8 @@ export function DrawAttack(ctx, player) {
         DrawDirectionalPunch(ctx, player, attackType);
     } else if (isKick(attackType)) {
         DrawDirectionalKick(ctx, player, attackType);
+    } else if (isRanged(attackType)) {
+        DrawRangedAttack(ctx, player, currentTick);
     } else if (player.isPunching) {
         // Legacy fallback
         DrawDirectionalPunch(ctx, player, ATTACK_TYPES.MID_PUNCH);
@@ -532,6 +673,80 @@ export function DrawDirectionalKick(ctx, player, attackType) {
 // Legacy DrawKick - now uses DrawDirectionalKick with MID_KICK
 export function DrawKick(ctx, player) {
     DrawDirectionalKick(ctx, player, player.currentAttackType || ATTACK_TYPES.MID_KICK);
+}
+
+export function DrawRangedAttack(ctx, player, currentTick = null) {
+    const ranged = player.rangedAttack;
+    if (!ranged) return;
+
+    const w = player.characterWidth;
+    const h = player.characterHeight;
+    const cx = player.x + w / 2;
+    const facingRight = player.facing === "right";
+    const launchX = facingRight ? player.x + w + 8 : player.x - 8;
+    const accent = ranged.projectileColor || player.visual?.accentColor || "#f8fafc";
+    const resolvedTick = currentTick ?? player.attackStartTick ?? 0;
+    const projectileState = getProjectileState({
+        currentTick: resolvedTick,
+        attackStartTick: player.attackStartTick,
+        facing: player.facing,
+        rangedAttack: ranged,
+        spawnX: player.projectileSpawnX,
+        spawnHeight: player.projectileSpawnHeight,
+    });
+
+    ctx.save();
+    ctx.strokeStyle = accent;
+    ctx.fillStyle = accent;
+    ctx.lineWidth = 3;
+
+    // Attack pose
+    const shoulderY = player.y + h - (h - STICK_SHOULDER_Y);
+    ctx.beginPath();
+    ctx.moveTo(cx, shoulderY);
+    ctx.lineTo(facingRight ? cx + 8 : cx - 8, shoulderY - 6);
+    ctx.lineTo(launchX, shoulderY - 2);
+    ctx.stroke();
+
+    if (!projectileState.spawned || projectileState.expired) {
+        ctx.restore();
+        return;
+    }
+
+    const projectileY = CONSTS.FLOOR_Y - player.characterHeight - (player.projectileSpawnHeight ?? 0) + ranged.yOffset;
+    const projectileX = projectileState.x;
+
+    ctx.globalAlpha = 0.25;
+    ctx.beginPath();
+    ctx.moveTo(launchX, shoulderY - 2);
+    ctx.lineTo(projectileX, projectileY);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    if (ranged.effect === "arrow") {
+        ctx.beginPath();
+        ctx.moveTo(projectileX, projectileY);
+        ctx.lineTo(projectileX + (facingRight ? 16 : -16), projectileY);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(projectileX + (facingRight ? 16 : -16), projectileY);
+        ctx.lineTo(projectileX + (facingRight ? 9 : -9), projectileY - 4);
+        ctx.lineTo(projectileX + (facingRight ? 9 : -9), projectileY + 4);
+        ctx.closePath();
+        ctx.fill();
+    } else if (ranged.effect === "dagger") {
+        ctx.save();
+        ctx.translate(projectileX, projectileY);
+        ctx.rotate(facingRight ? 0.2 : -0.2);
+        ctx.fillRect(facingRight ? 0 : -16, -2, 16, 4);
+        ctx.restore();
+    } else {
+        ctx.beginPath();
+        ctx.arc(projectileX, projectileY, 9, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    ctx.restore();
 }
 
 export function DrawFaceDirection(ctx, player) {

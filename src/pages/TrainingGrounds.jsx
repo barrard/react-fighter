@@ -46,7 +46,7 @@ const TrainingGrounds = () => {
         fetch(`${API_BASE}/characters`)
             .then((res) => res.json())
             .then((data) => {
-                const char = data[0];
+                const char = data.find((entry) => entry.stats?.rangedAttack) || data[0];
                 const stats = char.stats;
                 allPlayersRef.current.set(socket.id, {
                     ...stats,
@@ -103,6 +103,7 @@ const TrainingGrounds = () => {
                         <span><strong>↑/Space</strong> Jump</span>
                         <span><strong>Z</strong> Punch</span>
                         <span><strong>X</strong> Kick</span>
+                        <span><strong>→→ or ←← + X</strong> Ranged</span>
                     </div>
                     <Button
                         size="sm"

@@ -27,7 +27,8 @@ export function useGameEngine({ socket, canvasRef, allPlayers, localPlayerId, ma
             socket,
             inputBatcher,
             localPlayerId,
-            allPlayers
+            allPlayers,
+            { localOnly: true }
         );
         gameLoop.start();
         gameLoopRef.current = gameLoop;
@@ -55,7 +56,8 @@ export function useGameEngine({ socket, canvasRef, allPlayers, localPlayerId, ma
             socket,
             inputBatcher,
             localPlayerId,
-            allPlayers
+            allPlayers,
+            { localOnly: false }
         );
         gameLoop.start();
         gameLoopRef.current = gameLoop;

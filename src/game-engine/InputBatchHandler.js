@@ -1,7 +1,8 @@
 // InputBatchHandler.js
 import { encodeInputMask } from "@shared/inputFlags.js";
 import { BASE_STATS } from "@shared/Characters.js";
-import { ATTACK_TYPES, getAttackTypeName } from "@shared/attackTypes.js";
+import { ATTACK_TYPES } from "@shared/attackTypes.js";
+import { createComboState, updateForwardComboState, consumeRangedCombo } from "@shared/comboSystem.js";
 
 // Key -> Action mapping (easy to customize)
 const KEY_MAP = {
@@ -39,6 +40,9 @@ export default class InputBatchHandler {
         this.inputHistory = {};
 
         this.setDefaultInputState();
+        this.comboState = createComboState();
+        this.facingResolver = null;
+        this.playerResolver = null;
 
         // Animation durations from shared character stats (legacy)
         this.PUNCH_DURATION = BASE_STATS.punchDuration;
@@ -102,9 +106,18 @@ export default class InputBatchHandler {
         };
     }
 
+    setFacingResolver(resolver) {
+        this.facingResolver = resolver;
+    }
+
+    setPlayerResolver(resolver) {
+        this.playerResolver = resolver;
+    }
+
     resetForRound() {
         this.isMatchStarted = false;
         this.inputHistory = {};
+        this.comboState = createComboState();
         this.setDefaultInputState();
     }
 
@@ -119,6 +132,7 @@ export default class InputBatchHandler {
         // change between rounds.
         this.isMatchStarted = true;
         this.inputHistory = {};
+        this.comboState = createComboState();
         this.setDefaultInputState();
     }
 
@@ -170,6 +184,16 @@ export default class InputBatchHandler {
         // Movement and jump are held
         if (action === "left" || action === "right" || action === "jump" || action === "crouch") {
             this.keysPressed[action] = true;
+            if (action === "left" || action === "right") {
+                const currentTick = this.getEstimatedServerTick();
+                updateForwardComboState(
+                    this.comboState,
+                    this.keysPressed,
+                    { ...this.keysPressed, [action]: false },
+                    this.getFacing(),
+                    currentTick
+                );
+            }
             return;
         }
 
@@ -194,7 +218,12 @@ export default class InputBatchHandler {
                 duration = this.attackDurations.midPunch.duration;
             }
         } else if (action === "kick") {
-            if (this.keysPressed.jump) {
+            const currentTick = this.getEstimatedServerTick();
+            const rangedAttack = this.getCurrentPlayer()?.rangedAttack;
+            if (rangedAttack && consumeRangedCombo(this.comboState, currentTick)) {
+                attackType = ATTACK_TYPES.RANGED;
+                duration = rangedAttack.duration;
+            } else if (this.keysPressed.jump) {
                 attackType = ATTACK_TYPES.HIGH_KICK;
                 duration = this.attackDurations.highKick.duration;
             } else if (this.keysPressed.crouch) {
@@ -226,6 +255,14 @@ export default class InputBatchHandler {
         if (action === "left" || action === "right" || action === "jump" || action === "crouch") {
             this.keysPressed[action] = false;
         }
+    }
+
+    getFacing() {
+        return this.facingResolver ? this.facingResolver() : "right";
+    }
+
+    getCurrentPlayer() {
+        return this.playerResolver ? this.playerResolver() : null;
     }
 
     sendBatch() {
