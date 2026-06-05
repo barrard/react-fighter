@@ -58,6 +58,7 @@ const TrainingGrounds = () => {
                     characterWidth: stats.width,
                     characterHeight: stats.height,
                     maxHealth: stats.health,
+                    spriteCharacter: 'bear',
                     isCrouching: false,
                     horizontalVelocity: 0,
                     verticalVelocity: 0,

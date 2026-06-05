@@ -15,6 +15,9 @@ import {
 } from "./Draw.js";
 import { Camera } from "./Camera.js";
 import { getArena, DEFAULT_ARENA_ID } from "@shared/arenas.js";
+import { SpriteLoader } from "./SpriteLoader.js";
+import { updateAnimationState, removeAnimationState, clearAllAnimationStates } from "./AnimationStateMachine.js";
+import { DrawSprite } from "./DrawSprite.js";
 // import { DrawPlayer, DrawPunch, DrawKick, DrawFaceDirection, DrawYou, DrawFloor, DrawInitialScene  } from "http://localhost:3000/js/Draw.js";
 
 class GameLoop {
@@ -65,6 +68,8 @@ class GameLoop {
         this.camera = new Camera();
         this.arena = null;
         this.setArena(DEFAULT_ARENA_ID);
+
+        this.spriteLoader = new SpriteLoader();
 
         this.init();
     }
@@ -128,8 +133,8 @@ class GameLoop {
 
         // Handle player leaving
         this.onPlayerLeft = (id) => {
-            // console.log("Player left:", id);
             this.allPlayers.delete(id);
+            removeAnimationState(id);
         };
         this.socket.on("playerLeft", this.onPlayerLeft);
 
@@ -189,6 +194,13 @@ class GameLoop {
                         otherPlayer.isPunching = serverPlayer.isPunching || false;
                         otherPlayer.isKicking = serverPlayer.isKicking || false;
                         otherPlayer.currentAttackType = serverPlayer.currentAttackType || ATTACK_TYPES.NONE;
+                        // Derive attackAnimStartTime from attackStartTick so the animation
+                        // state machine has a stable local clock. Reset on each new attack tick.
+                        if (serverPlayer.attackStartTick && serverPlayer.attackStartTick !== otherPlayer.attackStartTick) {
+                            otherPlayer.attackAnimStartTime = performance.now();
+                        } else if (!serverPlayer.attackStartTick) {
+                            otherPlayer.attackAnimStartTime = undefined;
+                        }
                         otherPlayer.attackStartTick = serverPlayer.attackStartTick ?? null;
                         otherPlayer.projectileSpawnX = serverPlayer.projectileSpawnX ?? null;
                         otherPlayer.projectileSpawnHeight = serverPlayer.projectileSpawnHeight ?? null;
@@ -269,6 +281,7 @@ class GameLoop {
 
     destroy() {
         this.stop();
+        clearAllAnimationStates();
         if (this.onPlayerKicked) this.socket.off("playerKicked", this.onPlayerKicked);
         if (this.onPlayerLeft) this.socket.off("playerLeft", this.onPlayerLeft);
         if (this.onGameState) this.socket.off("gs", this.onGameState);
@@ -503,6 +516,7 @@ class GameLoop {
             player.currentAttackType = attackType;
             player.isPunching = isPunch(attackType);
             player.isKicking = isKick(attackType);
+            player.attackAnimStartTime = performance.now();
             player.isRangedAttacking = isRanged(attackType);
             if (attackType === ATTACK_TYPES.RANGED && this.localOnly) {
                 player.attackStartTick = this.localInputs.getEstimatedServerTick();
@@ -531,6 +545,7 @@ class GameLoop {
         }
 
         // Apply horizontal velocity with smoothing
+        player.horizontalVelocity = this.horizontalVelocity;
         player.x += this.horizontalVelocity;
         // Constrain player within boundaries
         player.x = this.clampX(player.x);
@@ -669,26 +684,28 @@ class GameLoop {
         this.ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
 
         // Draw all players (world space)
+        const estimatedServerTick = this.localInputs.getEstimatedServerTick();
         this.allPlayers.forEach((player) => {
-            DrawPlayer(this.ctx, player, now);
+            if (player.spriteCharacter && !this.spriteLoader.isLoaded(player.spriteCharacter)) {
+                this.spriteLoader.load(player.spriteCharacter).catch((err) => console.error('SpriteLoader:', err));
+            }
+            const animState = updateAnimationState(player, now);
+            const usedSprite = DrawSprite(this.ctx, player, this.spriteLoader, animState, now);
+
+            if (!usedSprite) {
+                // Procedural fallback: used when no sprite sheet exists for this character
+                // or animation (e.g. knockdown, celebrate).
+                DrawPlayer(this.ctx, player, now);
+                const attackType = player.currentAttackType || ATTACK_TYPES.NONE;
+                const hasRoundAnimation = Boolean(player.roundAnimation);
+                if (!hasRoundAnimation && (attackType !== ATTACK_TYPES.NONE || player.isPunching || player.isKicking)) {
+                    DrawAttack(this.ctx, player, estimatedServerTick);
+                }
+                DrawFaceDirection(this.ctx, player);
+            }
+
             DrawHealthBar(this.ctx, player);
-
-            // Draw attack animations (directional punch/kick)
-            const attackType = player.currentAttackType || ATTACK_TYPES.NONE;
-            const hasRoundAnimation = Boolean(player.roundAnimation);
-            const estimatedServerTick = this.localInputs.getEstimatedServerTick();
-            if (
-                !hasRoundAnimation &&
-                (attackType !== ATTACK_TYPES.NONE || player.isPunching || player.isKicking)
-            ) {
-                DrawAttack(this.ctx, player, estimatedServerTick);
-            }
-
-            DrawFaceDirection(this.ctx, player);
-
-            if (player.id === this.localPlayerId) {
-                DrawYou(this.ctx, player);
-            }
+            if (player.id === this.localPlayerId) DrawYou(this.ctx, player);
         });
 
         // Restore to screen space

@@ -1,0 +1,283 @@
+{
+  "source_blend": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/rubberjaw_rumble_3d_rigged_pose_test.blend",
+  "frame_width": 512,
+  "frame_height": 512,
+  "game_fps": 60,
+  "transparent_background": true,
+  "camera_ortho_scale": 4.2,
+  "camera_target": [
+    0.0,
+    -0.45,
+    1.55
+  ],
+  "sheets": {
+    "idle_facing_left": {
+      "id": "idle",
+      "direction": "facing_left",
+      "action": "ACT_RR_idle_loop",
+      "loop": true,
+      "fps": 12,
+      "game_frames_per_sprite_frame": 5,
+      "frame_width": 512,
+      "frame_height": 512,
+      "frame_count": 6,
+      "source_frames": [
+        1,
+        4,
+        7,
+        10,
+        13,
+        16
+      ],
+      "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/idle_facing_left.png",
+      "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/idle_facing_left",
+      "view": "camera along +X; character faces screen-left"
+    },
+    "walk_shuffle_facing_left": {
+      "id": "walk_shuffle",
+      "direction": "facing_left",
+      "action": "ACT_RR_walk_shuffle_blocking",
+      "loop": true,
+      "fps": 12,
+      "game_frames_per_sprite_frame": 5,
+      "frame_width": 512,
+      "frame_height": 512,
+      "frame_count": 7,
+      "source_frames": [
+        1,
+        3,
+        5,
+        9,
+        11,
+        13,
+        17
+      ],
+      "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/walk_shuffle_facing_left.png",
+      "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/walk_shuffle_facing_left",
+      "view": "camera along +X; character faces screen-left"
+    },
+    "mid_high_kick_facing_left": {
+      "id": "mid_high_kick",
+      "direction": "facing_left",
+      "action": "ACT_RR_mid_high_kick",
+      "loop": false,
+      "fps": 20,
+      "game_frames_per_sprite_frame": 3,
+      "frame_width": 512,
+      "frame_height": 512,
+      "frame_count": 8,
+      "source_frames": [
+        1,
+        3,
+        5,
+        7,
+        8,
+        10,
+        12,
+        14
+      ],
+      "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/mid_high_kick_facing_left.png",
+      "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/mid_high_kick_facing_left",
+      "view": "camera along +X; character faces screen-left"
+    },
+    "high_punch_facing_left": {
+      "id": "high_punch",
+      "direction": "facing_left",
+      "action": "ACT_RR_high_punch",
+      "loop": false,
+      "fps": 20,
+      "game_frames_per_sprite_frame": 3,
+      "frame_width": 512,
+      "frame_height": 512,
+      "frame_count": 7,
+      "source_frames": [
+        1,
+        3,
+        5,
+        6,
+        7,
+        9,
+        12
+      ],
+      "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/high_punch_facing_left.png",
+      "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/high_punch_facing_left",
+      "view": "camera along +X; character faces screen-left"
+    },
+    "jump_facing_left": {
+      "id": "jump",
+      "direction": "facing_left",
+      "action": "ACT_RR_jump",
+      "loop": false,
+      "fps": 12,
+      "game_frames_per_sprite_frame": 5,
+      "frame_width": 512,
+      "frame_height": 512,
+      "frame_count": 6,
+      "source_frames": [
+        1,
+        4,
+        7,
+        10,
+        13,
+        16
+      ],
+      "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/jump_facing_left.png",
+      "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/jump_facing_left",
+      "view": "camera along +X; character faces screen-left"
+    },
+    "crouch_facing_left": {
+      "id": "crouch",
+      "direction": "facing_left",
+      "action": "ACT_RR_crouch",
+      "loop": false,
+      "fps": 12,
+      "game_frames_per_sprite_frame": 5,
+      "frame_width": 512,
+      "frame_height": 512,
+      "frame_count": 4,
+      "source_frames": [
+        1,
+        3,
+        6,
+        10
+      ],
+      "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/crouch_facing_left.png",
+      "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/crouch_facing_left",
+      "view": "camera along +X; character faces screen-left"
+    },
+    "idle_facing_right": {
+      "id": "idle",
+      "direction": "facing_right",
+      "action": "ACT_RR_idle_loop",
+      "loop": true,
+      "fps": 12,
+      "game_frames_per_sprite_frame": 5,
+      "frame_width": 512,
+      "frame_height": 512,
+      "frame_count": 6,
+      "source_frames": [
+        1,
+        4,
+        7,
+        10,
+        13,
+        16
+      ],
+      "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/idle_facing_right.png",
+      "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/idle_facing_right",
+      "view": "camera along -X; character faces screen-right"
+    },
+    "walk_shuffle_facing_right": {
+      "id": "walk_shuffle",
+      "direction": "facing_right",
+      "action": "ACT_RR_walk_shuffle_blocking",
+      "loop": true,
+      "fps": 12,
+      "game_frames_per_sprite_frame": 5,
+      "frame_width": 512,
+      "frame_height": 512,
+      "frame_count": 7,
+      "source_frames": [
+        1,
+        3,
+        5,
+        9,
+        11,
+        13,
+        17
+      ],
+      "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/walk_shuffle_facing_right.png",
+      "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/walk_shuffle_facing_right",
+      "view": "camera along -X; character faces screen-right"
+    },
+    "mid_high_kick_facing_right": {
+      "id": "mid_high_kick",
+      "direction": "facing_right",
+      "action": "ACT_RR_mid_high_kick",
+      "loop": false,
+      "fps": 20,
+      "game_frames_per_sprite_frame": 3,
+      "frame_width": 512,
+      "frame_height": 512,
+      "frame_count": 8,
+      "source_frames": [
+        1,
+        3,
+        5,
+        7,
+        8,
+        10,
+        12,
+        14
+      ],
+      "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/mid_high_kick_facing_right.png",
+      "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/mid_high_kick_facing_right",
+      "view": "camera along -X; character faces screen-right"
+    },
+    "high_punch_facing_right": {
+      "id": "high_punch",
+      "direction": "facing_right",
+      "action": "ACT_RR_high_punch",
+      "loop": false,
+      "fps": 20,
+      "game_frames_per_sprite_frame": 3,
+      "frame_width": 512,
+      "frame_height": 512,
+      "frame_count": 7,
+      "source_frames": [
+        1,
+        3,
+        5,
+        6,
+        7,
+        9,
+        12
+      ],
+      "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/high_punch_facing_right.png",
+      "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/high_punch_facing_right",
+      "view": "camera along -X; character faces screen-right"
+    },
+    "jump_facing_right": {
+      "id": "jump",
+      "direction": "facing_right",
+      "action": "ACT_RR_jump",
+      "loop": false,
+      "fps": 12,
+      "game_frames_per_sprite_frame": 5,
+      "frame_width": 512,
+      "frame_height": 512,
+      "frame_count": 6,
+      "source_frames": [
+        1,
+        4,
+        7,
+        10,
+        13,
+        16
+      ],
+      "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/jump_facing_right.png",
+      "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/jump_facing_right",
+      "view": "camera along -X; character faces screen-right"
+    },
+    "crouch_facing_right": {
+      "id": "crouch",
+      "direction": "facing_right",
+      "action": "ACT_RR_crouch",
+      "loop": false,
+      "fps": 12,
+      "game_frames_per_sprite_frame": 5,
+      "frame_width": 512,
+      "frame_height": 512,
+      "frame_count": 4,
+      "source_frames": [
+        1,
+        3,
+        6,
+        10
+      ],
+      "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/crouch_facing_right.png",
+      "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/crouch_facing_right",
+      "view": "camera along -X; character faces screen-right"
+    }
+  }
+}
