@@ -76,8 +76,13 @@ export function useGameEngine({ socket, canvasRef, allPlayers, localPlayerId, ma
         if (!inputBatcherRef.current) return;
         if (matchStartData) {
             inputBatcherRef.current.applyMatchStart(matchStartData);
-            if (gameLoopRef.current && !gameLoopRef.current.isRunning) {
-                gameLoopRef.current.start();
+            if (gameLoopRef.current) {
+                if (matchStartData.arenaId) {
+                    gameLoopRef.current.setArena(matchStartData.arenaId);
+                }
+                if (!gameLoopRef.current.isRunning) {
+                    gameLoopRef.current.start();
+                }
             }
         } else {
             inputBatcherRef.current.resetForRound();

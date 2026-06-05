@@ -846,3 +846,20 @@ export function DrawFloor(ctx, canvas) {
     ctx.fillStyle = "#228B22"; // Forest green
     ctx.fillRect(0, FLOOR_Y, canvas.width, 5);
 }
+
+// Draws the arena background. The image is rendered in screen space (independent
+// of the camera transform) so it always fills the canvas with correct pan/zoom.
+// Falls back to the plain floor rect if the image hasn't loaded yet.
+export function DrawArena(ctx, canvas, arena, camera) {
+    const img = arena?.image;
+    if (img?.complete && img.naturalWidth > 0) {
+        const { srcX, srcY, srcW, srcH } = camera.getBackgroundCrop(img);
+        ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
+    } else {
+        const floorY = canvas.height - FLOOR_HEIGHT;
+        ctx.fillStyle = "#8B4513";
+        ctx.fillRect(0, floorY, canvas.width, FLOOR_HEIGHT);
+        ctx.fillStyle = "#228B22";
+        ctx.fillRect(0, floorY, canvas.width, 5);
+    }
+}

@@ -10,9 +10,11 @@ import {
     DrawAttack,
     DrawFaceDirection,
     DrawYou,
-    DrawFloor,
+    DrawArena,
     DrawInitialScene,
 } from "./Draw.js";
+import { Camera } from "./Camera.js";
+import { getArena, DEFAULT_ARENA_ID } from "@shared/arenas.js";
 // import { DrawPlayer, DrawPunch, DrawKick, DrawFaceDirection, DrawYou, DrawFloor, DrawInitialScene  } from "http://localhost:3000/js/Draw.js";
 
 class GameLoop {
@@ -57,8 +59,12 @@ class GameLoop {
         this.GRAVITY = GRAVITY;
         this.SERVER_TICK_RATE = SERVER_TICK_RATE;
 
-        this.animationFrameId = null; // Add this to track the loop
-        this.isRunning = false; // Add a flag to prevent multiple loops
+        this.animationFrameId = null;
+        this.isRunning = false;
+
+        this.camera = new Camera();
+        this.arena = null;
+        this.setArena(DEFAULT_ARENA_ID);
 
         this.init();
     }
@@ -270,6 +276,14 @@ class GameLoop {
         if (this.onRoundStart) this.socket.off("roundStart", this.onRoundStart);
     }
 
+    setArena(arenaId) {
+        const config = getArena(arenaId);
+        this.camera.setArena(arenaId);
+        const img = new Image();
+        this.arena = { config, image: img };
+        img.src = config.backgroundUrl;
+    }
+
     handleServerUpdateLocalPlayer(serverPlayerLocal) {
         if (!this.localPlayerId) return;
         const localFuturePlayer = this.allPlayers.get(this.localPlayerId);
@@ -415,9 +429,8 @@ class GameLoop {
     clampX(x) {
         const localPlayer = this.allPlayers.get(this.localPlayerId);
         const width = localPlayer?.characterWidth || 50;
-        const canvasWidth = this.canvas?.width || CONSTS.CANVAS_WIDTH;
-        const maxX = Math.max(0, canvasWidth - width);
-        return Math.max(0, Math.min(maxX, x));
+        const arenaWidth = this.camera?.arenaWidth || CONSTS.CANVAS_WIDTH;
+        return Math.max(0, Math.min(arenaWidth - width, x));
     }
     // Updated updateLocalPlayerGameLoop with smoother local prediction
     updateLocalPlayerGameLoop() {
@@ -644,12 +657,19 @@ class GameLoop {
         // Update local player position for responsive feel
         this.updateLocalPlayerGameLoop();
 
-        // Draw floor
-        DrawFloor(this.ctx, this.canvas);
+        // Update camera to track current player positions
+        this.camera.update(this.allPlayers);
 
-        // Draw all players
+        // Draw arena background in screen space (independent of camera transform)
+        DrawArena(this.ctx, this.canvas, this.arena, this.camera);
+
+        // Apply camera transform for all world-space elements
+        const { scale, offsetX, offsetY } = this.camera.getTransform(this.canvas);
+        this.ctx.save();
+        this.ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
+
+        // Draw all players (world space)
         this.allPlayers.forEach((player) => {
-            // Draw player rectangle
             DrawPlayer(this.ctx, player, now);
             DrawHealthBar(this.ctx, player);
 
@@ -664,14 +684,15 @@ class GameLoop {
                 DrawAttack(this.ctx, player, estimatedServerTick);
             }
 
-            // Draw direction indicator (eyes on head)
             DrawFaceDirection(this.ctx, player);
 
-            // Highlight current player
             if (player.id === this.localPlayerId) {
                 DrawYou(this.ctx, player);
             }
         });
+
+        // Restore to screen space
+        this.ctx.restore();
 
         // Update player count
         this.myCanvas.status.textContent = `Connected Players: ${this.allPlayers.size}`;
