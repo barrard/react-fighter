@@ -14,6 +14,8 @@ import CharacterSelect from "@/components/CharacterSelect.jsx"; // Your NEW Char
 import FightCanvas from "@/components/FightCanvas.jsx"; // Import the new component
 import CONSTS from "../game-engine/contants.js"; // Import game constants
 import { ATTACK_TYPES } from "@shared/attackTypes.js";
+import CHARACTERS from "@shared/Characters.js";
+import { preloadMatchAssets } from "../game-engine/matchAssets.js";
 
 const ROUND_RESULT_ANIMATION_DURATION = 1700;
 const ROUND_RESET_DELAY_MS = 1700;
@@ -25,6 +27,10 @@ const nowMs = () => {
 };
 
 export default function GameRoom() {
+    useEffect(() => {
+        preloadMatchAssets(CHARACTERS).catch((error) => console.error("Asset preload:", error));
+    }, []);
+
     const { roomId } = useParams();
     const navigate = useNavigate();
     const location = useLocation();

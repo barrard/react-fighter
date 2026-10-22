@@ -31,7 +31,8 @@
       ],
       "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/idle_facing_left.png",
       "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/idle_facing_left",
-      "view": "camera along +X; character faces screen-left"
+      "view": "camera along +X; character faces screen-left",
+      "file": "idle_facing_left.webp"
     },
     "walk_shuffle_facing_left": {
       "id": "walk_shuffle",
@@ -54,7 +55,8 @@
       ],
       "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/walk_shuffle_facing_left.png",
       "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/walk_shuffle_facing_left",
-      "view": "camera along +X; character faces screen-left"
+      "view": "camera along +X; character faces screen-left",
+      "file": "walk_shuffle_facing_left.webp"
     },
     "mid_high_kick_facing_left": {
       "id": "mid_high_kick",
@@ -78,7 +80,8 @@
       ],
       "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/mid_high_kick_facing_left.png",
       "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/mid_high_kick_facing_left",
-      "view": "camera along +X; character faces screen-left"
+      "view": "camera along +X; character faces screen-left",
+      "file": "mid_high_kick_facing_left.webp"
     },
     "high_punch_facing_left": {
       "id": "high_punch",
@@ -101,7 +104,8 @@
       ],
       "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/high_punch_facing_left.png",
       "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/high_punch_facing_left",
-      "view": "camera along +X; character faces screen-left"
+      "view": "camera along +X; character faces screen-left",
+      "file": "high_punch_facing_left.webp"
     },
     "jump_facing_left": {
       "id": "jump",
@@ -123,7 +127,8 @@
       ],
       "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/jump_facing_left.png",
       "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/jump_facing_left",
-      "view": "camera along +X; character faces screen-left"
+      "view": "camera along +X; character faces screen-left",
+      "file": "jump_facing_left.webp"
     },
     "crouch_facing_left": {
       "id": "crouch",
@@ -143,7 +148,8 @@
       ],
       "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/crouch_facing_left.png",
       "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/crouch_facing_left",
-      "view": "camera along +X; character faces screen-left"
+      "view": "camera along +X; character faces screen-left",
+      "file": "crouch_facing_left.webp"
     },
     "idle_facing_right": {
       "id": "idle",
@@ -165,7 +171,8 @@
       ],
       "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/idle_facing_right.png",
       "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/idle_facing_right",
-      "view": "camera along -X; character faces screen-right"
+      "view": "camera along -X; character faces screen-right",
+      "file": "idle_facing_right.webp"
     },
     "walk_shuffle_facing_right": {
       "id": "walk_shuffle",
@@ -188,7 +195,8 @@
       ],
       "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/walk_shuffle_facing_right.png",
       "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/walk_shuffle_facing_right",
-      "view": "camera along -X; character faces screen-right"
+      "view": "camera along -X; character faces screen-right",
+      "file": "walk_shuffle_facing_right.webp"
     },
     "mid_high_kick_facing_right": {
       "id": "mid_high_kick",
@@ -212,7 +220,8 @@
       ],
       "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/mid_high_kick_facing_right.png",
       "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/mid_high_kick_facing_right",
-      "view": "camera along -X; character faces screen-right"
+      "view": "camera along -X; character faces screen-right",
+      "file": "mid_high_kick_facing_right.webp"
     },
     "high_punch_facing_right": {
       "id": "high_punch",
@@ -235,7 +244,8 @@
       ],
       "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/high_punch_facing_right.png",
       "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/high_punch_facing_right",
-      "view": "camera along -X; character faces screen-right"
+      "view": "camera along -X; character faces screen-right",
+      "file": "high_punch_facing_right.webp"
     },
     "jump_facing_right": {
       "id": "jump",
@@ -257,7 +267,8 @@
       ],
       "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/jump_facing_right.png",
       "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/jump_facing_right",
-      "view": "camera along -X; character faces screen-right"
+      "view": "camera along -X; character faces screen-right",
+      "file": "jump_facing_right.webp"
     },
     "crouch_facing_right": {
       "id": "crouch",
@@ -277,7 +288,8 @@
       ],
       "sheet": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/sheets/crouch_facing_right.png",
       "frames_dir": "/home/dave-mini2/Documents/blender-files/fighter-char-creation-1/sprite_sheet_exports/frames/crouch_facing_right",
-      "view": "camera along -X; character faces screen-right"
+      "view": "camera along -X; character faces screen-right",
+      "file": "crouch_facing_right.webp"
     }
   }
 }

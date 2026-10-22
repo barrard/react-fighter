@@ -9,6 +9,7 @@ import { Swords } from "lucide-react";
 
 // Game Engine Imports
 import { useGameEngine } from "../game-engine/useGameEngine";
+import { preloadMatchAssets } from "../game-engine/matchAssets.js";
 
 export default function FightCanvas({
     player1,
@@ -32,6 +33,7 @@ export default function FightCanvas({
     const { socket } = useSocket();
     const canvasRef = useRef(null);
     const readySentRef = useRef(false);
+    const [assetsLoading, setAssetsLoading] = useState(true);
     const [hudHealth, setHudHealth] = useState({ p1: 100, p2: 100 });
 
     const { inputBatcherRef } = useGameEngine({ socket, canvasRef, allPlayers, localPlayerId, matchStartData });
@@ -49,11 +51,13 @@ export default function FightCanvas({
 
     useEffect(() => {
         if (!canvasRef.current || readySentRef.current) return;
+        let cancelled = false;
+        let frameId;
         let attempts = 0;
         const MAX_ATTEMPTS = 5;
         const checkReady = () => {
             const canvas = canvasRef.current;
-            if (!canvas) return;
+            if (!canvas || cancelled) return;
             const rect = canvas.getBoundingClientRect();
             const ready = canvas.width > 0 && canvas.height > 0 && rect.width > 0 && rect.height > 0;
             if (ready) {
@@ -65,11 +69,24 @@ export default function FightCanvas({
             }
             attempts += 1;
             if (attempts < MAX_ATTEMPTS) {
-                requestAnimationFrame(checkReady);
+                frameId = requestAnimationFrame(checkReady);
             }
         };
-        requestAnimationFrame(checkReady);
-    }, [onCanvasReady]);
+        // The server should start its countdown only once downloads and image
+        // decoding are finished. Keep procedural rendering available on failure.
+        preloadMatchAssets([player1?.character, player2?.character])
+            .catch((error) => console.error("Match asset loading:", error))
+            .then(() => {
+                if (!cancelled) {
+                    setAssetsLoading(false);
+                    frameId = requestAnimationFrame(checkReady);
+                }
+            });
+        return () => {
+            cancelled = true;
+            cancelAnimationFrame(frameId);
+        };
+    }, [onCanvasReady, player1?.character, player2?.character]);
 
     useEffect(() => {
         if (!allPlayers) return;
@@ -167,10 +184,10 @@ export default function FightCanvas({
                         width="1024"
                         height="576"
                     />
-                    {showReadyBanner && (
+                    {(showReadyBanner || (assetsLoading && !matchStartData)) && (
                         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
                             <div className="rounded-full bg-black/70 px-6 py-2 text-sm font-semibold tracking-wide text-white">
-                                Ready... waiting for sync
+                                {assetsLoading ? "Loading fighters and arena..." : "Ready... waiting for sync"}
                             </div>
                         </div>
                     )}

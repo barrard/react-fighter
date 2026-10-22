@@ -14,8 +14,9 @@ import {
     DrawInitialScene,
 } from "./Draw.js";
 import { Camera } from "./Camera.js";
-import { getArena, DEFAULT_ARENA_ID } from "@shared/arenas.js";
-import { SpriteLoader } from "./SpriteLoader.js";
+import { DEFAULT_ARENA_ID } from "@shared/arenas.js";
+import { spriteLoader } from "./SpriteLoader.js";
+import { getArenaAsset } from "./matchAssets.js";
 import { updateAnimationState, removeAnimationState, clearAllAnimationStates } from "./AnimationStateMachine.js";
 import { DrawSprite } from "./DrawSprite.js";
 // import { DrawPlayer, DrawPunch, DrawKick, DrawFaceDirection, DrawYou, DrawFloor, DrawInitialScene  } from "http://localhost:3000/js/Draw.js";
@@ -69,7 +70,8 @@ class GameLoop {
         this.arena = null;
         this.setArena(DEFAULT_ARENA_ID);
 
-        this.spriteLoader = new SpriteLoader();
+        this.spriteLoader = spriteLoader;
+        this.spriteLoadAttempts = new Set();
 
         this.init();
     }
@@ -290,11 +292,8 @@ class GameLoop {
     }
 
     setArena(arenaId) {
-        const config = getArena(arenaId);
         this.camera.setArena(arenaId);
-        const img = new Image();
-        this.arena = { config, image: img };
-        img.src = config.backgroundUrl;
+        this.arena = getArenaAsset(arenaId);
     }
 
     handleServerUpdateLocalPlayer(serverPlayerLocal) {
@@ -686,7 +685,9 @@ class GameLoop {
         // Draw all players (world space)
         const estimatedServerTick = this.localInputs.getEstimatedServerTick();
         this.allPlayers.forEach((player) => {
-            if (player.spriteCharacter && !this.spriteLoader.isLoaded(player.spriteCharacter)) {
+            if (player.spriteCharacter && !this.spriteLoader.isLoaded(player.spriteCharacter) &&
+                !this.spriteLoadAttempts.has(player.spriteCharacter)) {
+                this.spriteLoadAttempts.add(player.spriteCharacter);
                 this.spriteLoader.load(player.spriteCharacter).catch((err) => console.error('SpriteLoader:', err));
             }
             const animState = updateAnimationState(player, now);
